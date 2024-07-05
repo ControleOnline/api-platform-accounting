@@ -17,16 +17,29 @@ class NFeService extends NFePHP
                 case '65':
                     $this->cupomFiscal($order);
                     break;
+                case '55':
+                    $this->nfe($order);
+                    break;
+                case '57':
+                    $this->cte($order);
+                    break;
                 default:
                     return;
                     break;
             }
 
-            return $this->assign($order);
-
+            return $this->sign($order);
         } catch (\Exception $e) {
             echo $e->getMessage();
         }
+    }
+
+    protected function nfe(Order $order)
+    {
+    }
+
+    protected function cte(Order $order)
+    {
     }
 
     protected function cupomFiscal(Order $order)

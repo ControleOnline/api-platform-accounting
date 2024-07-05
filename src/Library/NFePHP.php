@@ -240,7 +240,7 @@ class NFePHP
         $this->make->tagCOFINS($std);
     }
 
-    protected function assign(Order $order)
+    protected function sign(Order $order)
     {
         $arr = [
             "atualizacao" => "2017-02-20 09:11:21",
