@@ -2,11 +2,16 @@
 
 namespace ControleOnline\Library;
 
+use ControleOnline\Entity\Config;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\Product;
+use ControleOnline\Entity\SalesInvoiceTax;
+use ControleOnline\Entity\SalesOrderInvoiceTax;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\Security\Core\Security;
 use NFePHP\Common\Certificate;
+use Symfony\Component\Security\Core\Security;
+use NFePHP\CTe\Common\Standardize;
+use Symfony\Component\HttpKernel\KernelInterface;
 
 class NFePHP
 {
@@ -18,46 +23,151 @@ class NFePHP
     public function __construct(
         protected EntityManagerInterface $manager,
         protected Security $security,
+        protected    KernelInterface $appKernel
     ) {
     }
 
     //ide OBRIGATÓRIA
     protected function makeIde(Order $order)
     {
+        $provider = $order->getProvider();
+        $document = $provider->getOneDocument();
+        //$dhEmi = date("Y-m-d\TH:i:s-03:00"); Para obter a data com diferença de fuso usar 'P'
+        $dhEmi = date("Y-m-d\TH:i:sP");
 
-        $std = new \stdClass();
-        $std->cUF = 14;
-        $std->cNF = '03701267';
-        $std->natOp = 'VENDA CONSUMIDOR';
-        $std->mod = 65;
-        $std->serie = 1;
-        $std->nNF = 100;
-        $std->dhEmi = (new \DateTime())->format('Y-m-d\TH:i:sP');
-        $std->dhSaiEnt = null;
-        $std->tpNF = 1;
-        $std->idDest = 1;
-        $std->cMunFG = 1400100;
-        $std->tpImp = 1;
-        $std->tpEmis = 1;
-        $std->cDV = 2;
-        $std->tpAmb = 2;
-        $std->finNFe = 1;
-        $std->indFinal = 1;
-        $std->indPres = 1;
-        $std->procEmi = 3;
-        $std->verProc = '4.13';
-        $std->dhCont = null;
-        $std->xJust = null;
-        $this->make->tagIde($std);
+        $numeroCTE = $this->getLastDacte();
+
+        // CUIDADO: Observe que mesmo os parâmetros fixados abaixo devem ser preenchidos conforme os dados do CT-e, estude a composição da CHAVE para saber o que vai em cada campo
+        $chave = $this->montaChave(
+            '43',
+            date('y', strtotime($dhEmi)),
+            date('m', strtotime($dhEmi)),
+            $document->getDOcument(),
+            $this->tools->model(),
+            '1',
+            $numeroCTE,
+            '1',
+            '10'
+        );
+
+        $cDV = substr($chave, -1);      //Digito Verificador
+
+        /**
+         * @todo
+         */
+        $ide = new \stdClass();
+        $ide->cUF = '43'; // Codigo da UF da tabela do IBGE
+        $ide->cCT = '99999999'; // Codigo numerico que compoe a chave de acesso
+        $ide->CFOP = '6932'; // Codigo fiscal de operacoes e prestacoes
+        $ide->natOp = 'PRESTACAO DE SERVICO DE TRANSPORTE A ESTABELECIMENTO FORA DO ESTADO DE ORIGEM'; // Natureza da operacao
+
+        /**
+         * @todo
+         */
+
+        //$ide->forPag = '';              // 0-Pago; 1-A pagar; 2-Outros
+        $ide->mod = '57'; // Modelo do documento fiscal: 57 para identificação do CT-e
+        $ide->serie = '1'; // Serie do CTe
+        $ide->nCT = $numeroCTE; // Numero do CTe
+        $ide->dhEmi = $dhEmi; // Data e hora de emissão do CT-e: Formato AAAA-MM-DDTHH:MM:DD
+        $ide->tpImp = '1'; // Formato de impressao do DACTE: 1-Retrato; 2-Paisagem.
+        $ide->tpEmis = '1'; // Forma de emissao do CTe: 1-Normal; 4-EPEC pela SVC; 5-Contingência
+        $ide->cDV = $cDV; // Codigo verificador
+        $ide->tpAmb = '2'; // 1- Producao; 2-homologacao
+        $ide->tpCTe = '0'; // 0- CT-e Normal; 1 - CT-e de Complemento de Valores;
+        // 2 -CT-e de Anulação; 3 - CT-e Substituto
+        $ide->procEmi = '0'; // Descricao no comentario acima
+        $ide->verProc = '3.0'; // versao do aplicativo emissor
+        $ide->indGlobalizado = '';
+        //$ide->refCTE = '';             // Chave de acesso do CT-e referenciado            
+        $ide->xMunEnv = 'FOZ DO IGUACU'; // Informar PAIS/Municipio para as operações com o exterior.
+        $ide->UFEnv = 'RS'; // Informar 'EX' para operações com o exterior.
+        $ide->modal = '01'; // Preencher com:01-Rodoviário; 02-Aéreo; 03-Aquaviário;04-
+        $ide->tpServ = '0'; // 0- Normal; 1- Subcontratação; 2- Redespacho;
+        $ide->cMunEnv = $this->getCodMunicipio($ide->xMunEnv, $ide->UFEnv); // Código do município (utilizar a tabela do IBGE)
+
+
+        /**
+         * @todo
+         */
+        // 3- Redespacho Intermediário; 4- Serviço Vinculado a Multimodal            
+        $ide->xMunIni = 'FOZ DO IGUACU'; // Informar 'EXTERIOR' para operações com o exterior.
+        $ide->UFIni = 'RS'; // Informar 'EX' para operações com o exterior.
+        $ide->cMunFim = '3523909'; // Utilizar a tabela do IBGE. Informar 9999999 para operações com o exterior.
+        $ide->cMunFim = $this->getCodMunicipio($ide->xMunIni, $ide->UFIni); // Código do município (utilizar a tabela do IBGE)
+
+
+        /**
+         * @todo
+         */
+        $ide->xMunFim = 'ITU'; // Informar 'EXTERIOR' para operações com o exterior.
+        $ide->UFFim = 'SP'; // Informar 'EX' para operações com o exterior.
+        $ide->cMunIni = $this->getCodMunicipio($ide->xMunFim, $ide->UFFim); // Código do município (utilizar a tabela do IBGE)
+
+        $ide->retira = '1'; // Indicador se o Recebedor retira no Aeroporto; Filial,
+        // Porto ou Estação de Destino? 0-sim; 1-não
+        $ide->xDetRetira = ''; // Detalhes do retira
+        $ide->indIEToma = '1';
+        $ide->dhCont = ''; // Data e Hora da entrada em contingência; no formato AAAAMM-DDTHH:MM:SS
+        $ide->xJust = '';                 // Justificativa da entrada em contingência
+
+        $this->make->tagide($ide);
+    }
+
+
+    //toma OBRIGATÓRIA
+    protected function makeTomador(Order $order)
+    {
+
+
+
+        // Indica o "papel" do tomador: 0-Remetente; 1-Expedidor; 2-Recebedor; 3-Destinatário
+        $toma3 = new \stdClass();
+        $toma3->toma = '3';
+        $this->make->tagtoma3($toma3);
+        //
+        //$toma4 = new stdClass();
+        //$toma4->toma = '4'; // 4-Outros; informar os dados cadastrais do tomador quando ele for outros
+        //$toma4->CNPJ = '11509962000197'; // CNPJ
+        //$toma4->CPF = ''; // CPF
+        //$toma4->IE = 'ISENTO'; // Iscricao estadual
+        //$toma4->xNome = 'RAZAO SOCIAL'; // Razao social ou Nome
+        //$toma4->xFant = 'NOME FANTASIA'; // Nome fantasia
+        //$toma4->fone = '5532128202'; // Telefone
+        //$toma4->email = 'email@gmail.com';   // email
+        //$cte->tagtoma4($toma4);
+
+        //endertoma OBRIGATÓRIA
+        $this->makeTomadorAddress($order);
+    }
+
+    protected function makeTomadorAddress(Order $order)
+    {
+
+        /**
+         * @todo
+         */
+        $enderToma = new \stdClass();
+        $enderToma->xLgr = 'Avenida Independência'; // Logradouro
+        $enderToma->nro = '482'; // Numero
+        $enderToma->xCpl = ''; // COmplemento
+        $enderToma->xBairro = 'Centro'; // Bairro
+        $enderToma->cMun = '4308607'; // Codigo do municipio do IBEGE Informar 9999999 para operações com o exterior
+        $enderToma->xMun = 'Garibaldi'; // Nome do município (Informar EXTERIOR para operações com o exterior.
+        $enderToma->CEP = '95720000'; // CEP
+        $enderToma->UF = 'SP'; //$arr['siglaUF']; // Sigla UF (Informar EX para operações com o exterior.)
+        $enderToma->cPais = '1058'; // Codigo do país ( Utilizar a tabela do BACEN )
+        $enderToma->xPais = 'Brasil';                   // Nome do pais
+        $this->make->tagenderToma($enderToma);
     }
 
     //emit OBRIGATÓRIA
     protected function makeEmit(Order $order)
     {
+        $provider = $order->getProvider();
+        $document = $provider->getOneDocument();
 
         $std = new \stdClass();
-        $std->xNome = 'SUA RAZAO SOCIAL LTDA';
-        $std->xFant = 'RAZAO';
         $std->IE = '111111111';
         $std->IEST = null;
         //$std->IM = '95095870';
@@ -65,6 +175,14 @@ class NFePHP
         $std->CRT = 1;
         $std->CNPJ = '99999999999999';
         //$std->CPF = '12345678901'; //NÃO PASSE TAGS QUE NÃO EXISTEM NO CASO
+
+        $emit = new \stdClass();
+        $emit->CNPJ = $document->getDOcument(); // CNPJ do emitente
+        //$emit->IE = '0100072968'; // Inscricao estadual
+        //$emit->IEST = ""; // Inscricao estadual
+        $emit->xNome = $provider->getName(); // Razao social
+        $emit->xFant = $provider->getAlias(); // Nome fantasia
+
         $this->make->tagemit($std);
 
         //enderEmit OBRIGATÓRIA
@@ -73,19 +191,23 @@ class NFePHP
 
     protected function makeEmitAddress(Order $order)
     {
-        $std = new \stdClass();
-        $std->xLgr = 'Avenida Getúlio Vargas';
-        $std->nro = '5022';
-        $std->xCpl = 'LOJA 42';
-        $std->xBairro = 'CENTRO';
-        $std->cMun = 1400100;
-        $std->xMun = 'BOA VISTA';
-        $std->UF = 'RR';
-        $std->CEP = '69301030';
-        $std->cPais = 1058;
-        $std->xPais = 'Brasil';
-        $std->fone = '55555555';
-        $this->make->tagenderemit($std);
+        $provider = $order->getProvider();
+        /**
+         * @var \ControleOnline\Entity\Address $providerAddress
+         */
+        $providerAddress = $provider->getAddress()[0];
+
+        $enderEmit = new \stdClass();
+        $enderEmit->xLgr = $providerAddress->getStreet()->getStreet(); // Logradouro
+        $enderEmit->nro = $providerAddress->getNumber(); // Numero
+        $enderEmit->xCpl = $providerAddress->getComplement(); // Complemento
+        $enderEmit->xBairro = $providerAddress->getStreet()->getDistrict()->getDistrict(); // Bairro
+        $enderEmit->xMun = $providerAddress->getStreet()->getDistrict()->getCity()->getCity(); // Nome do municipio            
+        $enderEmit->CEP = $providerAddress->getStreet()->getCep()->getCep(); // CEP
+        $enderEmit->UF =  $providerAddress->getStreet()->getDistrict()->getCity()->getState()->getUf(); // Sigla UF
+        $enderEmit->cMun = $this->getCodMunicipio($enderEmit->xMun, $enderEmit->UF); // Código do município (utilizar a tabela do IBGE)
+        $enderEmit->fone = $provider->getPhone()[0]->getDdd() . $provider->getPhone()[0]->getPhone(); // Fone
+        $this->make->tagenderemit($enderEmit);
     }
     //dest OPCIONAL
     protected function makeDest(Order $order)
@@ -242,32 +364,56 @@ class NFePHP
         return $this->tools->signNFe($this->make->getXML());
     }
 
-    protected function getCertificate()
+    protected function getCertificate(Order $order)
     {
-        $pfxcontent = file_get_contents('fixtures/expired_certificate.pfx');
-        return Certificate::readPfx($pfxcontent, 'associacao');
+        $provider = $order->getProvider();
+
+        $dacteKey = $this->manager->getRepository(Config::class)->findOneBy([
+            'people'  => $provider,
+            'config_key' => 'cert-path'
+        ]);
+
+        $dacteKeyPass = $this->manager->getRepository(Config::class)->findOneBy([
+            'people'  => $provider,
+            'config_key' => 'cert-pass'
+        ]);
+        if (!$dacteKey || !$dacteKeyPass)
+            throw new \Exception("DACTE key cert is required", 1);
+
+        $certPath = $this->appKernel->getProjectDir() . $dacteKey->getConfigValue();
+        if (!is_file($certPath))
+            throw new \Exception("DACTE key cert path is invalid", 1);
+        return Certificate::readPfx($this->getSignData($order), $dacteKeyPass->getConfigValue());
     }
 
     protected function getSignData(Order $order)
     {
+
+        $provider = $order->getProvider();
+        $document = $provider->getOneDocument();
+
+        /**
+         * @var \ControleOnline\Entity\Address $providerAddress
+         */
+        $providerAddress = $provider->getAddress()[0];
+
         $arr = [
-            "atualizacao" => "2017-02-20 09:11:21",
-            "tpAmb"       => 2,
-            "razaosocial" => "SUA RAZAO SOCIAL LTDA",
-            "cnpj"        => "99999999999999",
-            "siglaUF"     => "SP",
-            "schemes"     => "PL_009_V4",
-            "versao"      => '4.00',
-            "tokenIBPT"   => "AAAAAAA",
-            "CSC"         => "GPB0JBWLUR6HWFTVEAS6RJ69GPCROFPBBB8G",
-            "CSCid"       => "000001",
-            "proxyConf"   => [
-                "proxyIp"   => "",
+            "atualizacao" => date('Y-m-d H:m:i'),
+            "tpAmb" => 2, //2 - Homologação / 1 - Produção
+            "razaosocial" => $provider->getName(),
+            "cnpj" => $document->getDocument(),
+            //"cpf" => "00000000000",
+            "siglaUF" => $providerAddress->getStreet()->getDistrict()->getCity()->getState()->getUf(),
+            "schemes" => "PL_CTe_300",
+            "versao" => '3.00',
+            "proxyConf" => [
+                "proxyIp" => "",
                 "proxyPort" => "",
                 "proxyUser" => "",
                 "proxyPass" => ""
             ]
         ];
+
         return json_encode($arr);
     }
 
@@ -309,5 +455,127 @@ class NFePHP
         //$std->CSRT = 'G8063VRTNDMO886SFNK5LDUDEI24XJ22YIPO'; //Código de Segurança do Responsável Técnico
         //$std->idCSRT = '01'; //Identificador do CSRT
         $this->make->taginfRespTec($std);
+    }
+
+
+    protected function getCodMunicipio($mun, $uf)
+    {
+
+        /**
+         * @todo
+         */
+        $cod['sp'] = [
+            'Guarulhos' => '4108304',
+            'São Paulo' => '4108304'
+        ];
+
+        return $cod[$uf][$mun];
+    }
+    protected function getLastDacte()
+    {
+        return '127'; //@todo
+    }
+
+    protected function montaChave($cUF, $ano, $mes, $cnpj, $mod, $serie, $numero, $tpEmis, $codigo = '')
+    {
+        if ($codigo == '') {
+            $codigo = $numero;
+        }
+        $forma = "%02d%02d%02d%s%02d%03d%09d%01d%08d";
+        $chave = sprintf(
+            $forma,
+            $cUF,
+            $ano,
+            $mes,
+            $cnpj,
+            $mod,
+            $serie,
+            $numero,
+            $tpEmis,
+            $codigo
+        );
+        return $chave . $this->calculaDV($chave);
+    }
+
+
+    protected function sendData($xml)
+    {
+
+        //Envia lote e autoriza
+        $axmls[] = $xml;
+        $lote = substr(str_replace(',', '', number_format(microtime(true) * 1000000, 0)), 0, 15);
+        $res = $this->tools->sefazEnviaLote($axmls, $lote);
+
+        //Converte resposta
+        $stdCl = new Standardize($res);
+        //Output array
+        $arr = $stdCl->toArray();
+        //print_r($arr);
+        //Output object
+        $std = $stdCl->toStd();
+
+        if ($std->cStat != 103) { //103 - Lote recebido com Sucesso
+            //processa erros
+            print_r($arr);
+        }
+
+        //Consulta Recibo
+        $res = $this->tools->sefazConsultaRecibo($std->infRec->nRec);
+        $stdCl = new Standardize($res);
+        $arr = $stdCl->toArray();
+        $std = $stdCl->toStd();
+        if ($std->protCTe->infProt->cStat == 100) { //Autorizado o uso do CT-e
+            //adicionar protocolo
+        }
+        echo '<pre>';
+        print_r($arr);
+    }
+
+    protected function calculaDV($chave43)
+    {
+        $multiplicadores = array(2, 3, 4, 5, 6, 7, 8, 9);
+        $iCount = 42;
+        $somaPonderada = 0;
+        while ($iCount >= 0) {
+            for ($mCount = 0; $mCount < count($multiplicadores) && $iCount >= 0; $mCount++) {
+                $num = (int) substr($chave43, $iCount, 1);
+                $peso = (int) $multiplicadores[$mCount];
+                $somaPonderada += $num * $peso;
+                $iCount--;
+            }
+        }
+        $resto = $somaPonderada % 11;
+        if ($resto == '0' || $resto == '1') {
+            $cDV = 0;
+        } else {
+            $cDV = 11 - $resto;
+        }
+        return (string) $cDV;
+    }
+
+    public function  getNfNumber($xml)
+    {
+        return 1;
+    }
+
+    protected function persist(Order $order, $xml)
+    {
+        $provider = $order->getProvider();
+        $invoiceTax = new SalesInvoiceTax();
+        $invoiceTax->setInvoice($xml);
+        $invoiceTax->setInvoiceNumber($this->getNfNumber($xml));
+
+        $this->manager->persist($invoiceTax);
+        $this->manager->flush();
+
+
+        $orderInvoiceTax = new SalesOrderInvoiceTax();
+        $orderInvoiceTax->setOrder($order);
+        $orderInvoiceTax->setInvoiceType(57);
+        $orderInvoiceTax->setInvoiceTax($invoiceTax);
+        $orderInvoiceTax->setIssuer($provider);
+
+        $this->manager->persist($orderInvoiceTax);
+        $this->manager->flush();
     }
 }
