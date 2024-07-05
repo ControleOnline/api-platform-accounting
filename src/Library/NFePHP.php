@@ -6,25 +6,19 @@ use ControleOnline\Entity\Order;
 use ControleOnline\Entity\Product;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Security;
-
-use NFePHP\NFe\Tools;
-use NFePHP\NFe\Make;
 use NFePHP\Common\Certificate;
 
 class NFePHP
 {
-    /**
-     * @var  Make $make
-     */
     protected $make;
     protected $model;
+    protected $tools;
     protected $version;
 
     public function __construct(
         protected EntityManagerInterface $manager,
         protected Security $security,
     ) {
-        $this->make = new Make();
     }
 
     //ide OBRIGATÓRIA
@@ -243,6 +237,19 @@ class NFePHP
 
     protected function sign(Order $order)
     {
+        $this->tools->model($this->model);
+        //$tools->disableCertValidation(true); //tem que desabilitar
+        return $this->tools->signNFe($this->make->getXML());
+    }
+
+    protected function getCertificate()
+    {
+        $pfxcontent = file_get_contents('fixtures/expired_certificate.pfx');
+        return Certificate::readPfx($pfxcontent, 'associacao');
+    }
+
+    protected function getSignData(Order $order)
+    {
         $arr = [
             "atualizacao" => "2017-02-20 09:11:21",
             "tpAmb"       => 2,
@@ -261,15 +268,8 @@ class NFePHP
                 "proxyPass" => ""
             ]
         ];
-        $configJson = json_encode($arr);
-        $pfxcontent = file_get_contents('fixtures/expired_certificate.pfx');
-
-        $tools = new Tools($configJson, Certificate::readPfx($pfxcontent, 'associacao'));
-        $tools->model($this->model);
-        //$tools->disableCertValidation(true); //tem que desabilitar
-        return   $tools->signNFe($this->make->getXML());
+        return json_encode($arr);
     }
-
 
     protected function makeTransp(Order $order)
     {

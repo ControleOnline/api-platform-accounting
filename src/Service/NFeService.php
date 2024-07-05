@@ -15,12 +15,18 @@ class NFeService extends NFePHP
         try {
             switch ($this->model) {
                 case '65':
+                    $this->make = new \NFePHP\NFe\Make();
+                    $this->tools = new \NFePHP\NFe\Tools($this->getSignData($order), $this->getCertificate());
                     $this->cupomFiscal($order);
                     break;
                 case '55':
+                    $this->make = new \NFePHP\NFe\Make();
+                    $this->tools = new \NFePHP\NFe\Tools($this->getSignData($order), $this->getCertificate());
                     $this->nfe($order);
                     break;
                 case '57':
+                    $this->make = new \NFePHP\CTe\MakeCTe();
+                    $this->tools = new \NFePHP\CTe\Tools($this->getSignData($order), $this->getCertificate());
                     $this->cte($order);
                     break;
                 default:
@@ -33,6 +39,8 @@ class NFeService extends NFePHP
             echo $e->getMessage();
         }
     }
+
+
 
     protected function nfe(Order $order)
     {
