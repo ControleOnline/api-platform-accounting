@@ -130,13 +130,14 @@ class NFePHP
         $this->make->tagenderdest($std);
     }
 
+    //prod OBRIGATÓRIA
     protected function makeProds(Order $order)
     {
-        $products  = [];
+        $orderProducts  = $order->getOrderProducts();
         $item = 1;
-        foreach ($products as $product) {
+        foreach ($orderProducts as $orderProducts) {
+            $product = $orderProducts->getProduct();
 
-            //prod OBRIGATÓRIA
             $std = new \stdClass();
             $std->item = $item;
             $std->cProd = '00341';
