@@ -6,7 +6,7 @@ use ControleOnline\Entity\Config;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\Product;
 use ControleOnline\Entity\SalesInvoiceTax;
-use ControleOnline\Entity\SalesOrderInvoiceTax;
+use ControleOnline\Entity\OrderInvoiceTax;
 use Doctrine\ORM\EntityManagerInterface;
 use NFePHP\Common\Certificate;
 use Symfony\Component\Security\Core\Security;
@@ -569,7 +569,7 @@ class NFePHP
         $this->manager->flush();
 
 
-        $orderInvoiceTax = new SalesOrderInvoiceTax();
+        $orderInvoiceTax = new OrderInvoiceTax();
         $orderInvoiceTax->setOrder($order);
         $orderInvoiceTax->setInvoiceType(57);
         $orderInvoiceTax->setInvoiceTax($invoiceTax);

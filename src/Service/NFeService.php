@@ -4,7 +4,7 @@ namespace ControleOnline\Service;
 
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\SalesInvoiceTax;
-use ControleOnline\Entity\SalesOrderInvoiceTax;
+use ControleOnline\Entity\OrderInvoiceTax;
 use ControleOnline\Library\NFePHP;
 
 class NFeService extends NFePHP
