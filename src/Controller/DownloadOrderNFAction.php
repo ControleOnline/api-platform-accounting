@@ -2,7 +2,7 @@
 
 namespace ControleOnline\Controller;
 
-use ControleOnline\Entity\PurchasingInvoiceTax as InvoiceTax;
+use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Service\DownloadNFService;
 use Symfony\Component\HttpFoundation\Request;
 

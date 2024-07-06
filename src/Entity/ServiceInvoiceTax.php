@@ -24,9 +24,9 @@ class ServiceInvoiceTax
     private $id;
 
     /**
-     * @var \ControleOnline\Entity\PurchasingInvoiceTax
+     * @var \ControleOnline\Entity\InvoiceTax
      *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\PurchasingInvoiceTax", inversedBy="service_invoice_tax")
+     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\InvoiceTax", inversedBy="service_invoice_tax")
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="invoice_tax_id", referencedColumnName="id")
      * })
@@ -79,10 +79,10 @@ class ServiceInvoiceTax
     /**
      * Set service_invoice_tax
      *
-     * @param \ControleOnline\Entity\PurchasingInvoiceTax $service_invoice_tax
+     * @param \ControleOnline\Entity\InvoiceTax $service_invoice_tax
      * @return InvoiceTax
      */
-    public function setServiceInvoiceTax(\ControleOnline\Entity\PurchasingInvoiceTax $service_invoice_tax = null)
+    public function setServiceInvoiceTax(\ControleOnline\Entity\InvoiceTax $service_invoice_tax = null)
     {
         $this->service_invoice_tax = $service_invoice_tax;
 
@@ -92,7 +92,7 @@ class ServiceInvoiceTax
     /**
      * Get service_invoice_tax
      *
-     * @return \ControleOnline\Entity\PurchasingInvoiceTax
+     * @return \ControleOnline\Entity\InvoiceTax
      */
     public function getServiceInvoiceTax()
     {
