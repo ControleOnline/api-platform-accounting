@@ -42,7 +42,7 @@ class CreateNFeAction
                     'error'   => $th->getMessage(),
                     'success' => false,
                 ],
-            ]);
+            ], 500);
         }
     }
 }
