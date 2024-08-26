@@ -3,6 +3,7 @@
 namespace ControleOnline\Library;
 
 use ControleOnline\Entity\Config;
+use ControleOnline\Entity\File;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\Product;
 use ControleOnline\Entity\SalesInvoiceTax;
@@ -369,7 +370,7 @@ class NFePHP
 
         $dacteKey = $this->manager->getRepository(Config::class)->findOneBy([
             'people'  => $provider,
-            'config_key' => 'cert-path'
+            'config_key' => 'cert-file'
         ]);
 
         $dacteKeyPass = $this->manager->getRepository(Config::class)->findOneBy([
@@ -377,12 +378,20 @@ class NFePHP
             'config_key' => 'cert-pass'
         ]);
         if (!$dacteKey || !$dacteKeyPass)
-            throw new \Exception("DACTE key cert is required", 1);
+            throw new \Exception("Key cert is required", 1);
 
-        $certPath = $this->appKernel->getProjectDir() . $dacteKey->getConfigValue();
-        if (!is_file($certPath))
-            throw new \Exception("DACTE key cert path is invalid", 1);
-        return Certificate::readPfx($this->getSignData($order), $dacteKeyPass->getConfigValue());
+        $certPath = $dacteKey->getConfigValue();
+
+        if (! $certPath)
+            throw new \Exception("Key cert path is invalid: " . $certPath, 1);
+        $certContent = $this->manager->getRepository(File::class)->find($dacteKey->getConfigValue());
+        if (!$certContent)
+            throw new \Exception("Key content on table files is empty " . $certPath, 1);
+        
+        return Certificate::readPfx(
+            $certContent->getContent(),
+            $dacteKeyPass->getConfigValue()
+        );
     }
 
     protected function getSignData(Order $order)
