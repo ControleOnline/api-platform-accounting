@@ -9,7 +9,7 @@ use ControleOnline\Library\NFePHP;
 
 class NFeService extends NFePHP
 {
-    public function createNfe(Order $order, $model, $version =  '4.0')
+    public function createNfe(Order $order, $model, $version =  '4.00')
     {
 
         $this->model = $model;

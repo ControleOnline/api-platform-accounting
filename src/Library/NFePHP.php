@@ -77,7 +77,7 @@ class NFePHP
         $ide->tpCTe = '0'; // 0- CT-e Normal; 1 - CT-e de Complemento de Valores;
         // 2 -CT-e de Anulação; 3 - CT-e Substituto
         $ide->procEmi = '0'; // Descricao no comentario acima
-        $ide->verProc = '3.0'; // versao do aplicativo emissor
+        $ide->verProc = $this->version; // versao do aplicativo emissor
         $ide->indGlobalizado = '';
         //$ide->refCTE = '';             // Chave de acesso do CT-e referenciado            
         $ide->xMunEnv = 'FOZ DO IGUACU'; // Informar PAIS/Municipio para as operações com o exterior.
@@ -387,7 +387,7 @@ class NFePHP
         $certContent = $this->manager->getRepository(File::class)->find($dacteKey->getConfigValue());
         if (!$certContent)
             throw new \Exception("Key content on table files is empty " . $certPath, 1);
-        
+
         return Certificate::readPfx(
             $certContent->getContent(),
             $dacteKeyPass->getConfigValue()
@@ -413,7 +413,7 @@ class NFePHP
             //"cpf" => "00000000000",
             "siglaUF" => $providerAddress->getStreet()->getDistrict()->getCity()->getState()->getUf(),
             "schemes" => "PL_CTe_300",
-            "versao" => '3.00',
+            "versao" => $this->version,
             "proxyConf" => [
                 "proxyIp" => "",
                 "proxyPort" => "",

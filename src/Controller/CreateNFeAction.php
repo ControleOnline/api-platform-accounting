@@ -40,6 +40,8 @@ class CreateNFeAction
                 'response' => [
                     'count'   => 0,
                     'error'   => $th->getMessage(),
+                    'file' => $th->getFile(),
+                    'line'=> $th->getLine(),
                     'success' => false,
                 ],
             ], 500);
