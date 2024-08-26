@@ -23,9 +23,8 @@ class NFePHP
     public function __construct(
         protected EntityManagerInterface $manager,
         protected Security $security,
-        protected    KernelInterface $appKernel
-    ) {
-    }
+        protected KernelInterface $appKernel
+    ) {}
 
     //ide OBRIGATÓRIA
     protected function makeIde(Order $order)

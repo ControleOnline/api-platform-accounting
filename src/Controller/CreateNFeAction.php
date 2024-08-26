@@ -2,30 +2,21 @@
 
 namespace ControleOnline\Controller;
 
-
 use Symfony\Component\HttpFoundation\Request;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use ControleOnline\Entity\Order;
 use ControleOnline\Service\NFeService;
-use Symfony\Component\HttpKernel\KernelInterface;
 
-class CreateDacteAction
+class CreateNFeAction
 {
-    /**
-     * Entity Manager
-     *
-     * @var EntityManagerInterface
-     */
-    private $manager = null;
-    private $tools;
-    private $appKernel;
 
-    public function __construct(EntityManagerInterface $entityManager, KernelInterface $appKernel, private NFeService $nFeService)
-    {
-        $this->manager = $entityManager;
-        $this->appKernel = $appKernel;
-    }
+
+
+    public function __construct(
+        private EntityManagerInterface $manager,
+        private NFeService $nFeService
+    ) {}
 
 
 
@@ -33,7 +24,7 @@ class CreateDacteAction
     {
         try {
 
-            $invoiceTax = $this->nFeService->createNfe($data, 57);
+            $invoiceTax = $this->nFeService->createNfe($data, 55);
             return new JsonResponse([
                 'response' => [
                     'data'    => $data->getId(),

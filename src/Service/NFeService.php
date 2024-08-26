@@ -37,7 +37,7 @@ class NFeService extends NFePHP
             }
 
             $xml = $this->sign($order);
-            $this->persist($order, $xml);
+            //$this->persist($order, $xml);
 
             return $xml;
         } catch (\Exception $e) {
