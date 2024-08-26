@@ -14,35 +14,32 @@ class NFeService extends NFePHP
 
         $this->model = $model;
         $this->version = $version;
-        try {
-            switch ($this->model) {
-                case '65':
-                    $this->make = new \NFePHP\NFe\Make();
-                    $this->tools = new \NFePHP\NFe\Tools($this->getSignData($order), $this->getCertificate($order));
-                    $this->cupomFiscal($order);
-                    break;
-                case '55':
-                    $this->make = new \NFePHP\NFe\Make();
-                    $this->tools = new \NFePHP\NFe\Tools($this->getSignData($order), $this->getCertificate($order));
-                    $this->nfe($order);
-                    break;
-                case '57':
-                    $this->make = new \NFePHP\CTe\MakeCTe();
-                    $this->tools = new \NFePHP\CTe\Tools($this->getSignData($order), $this->getCertificate($order));
-                    $this->cte($order);
-                    break;
-                default:
-                    return;
-                    break;
-            }
 
-            $xml = $this->sign($order);
-            //$this->persist($order, $xml);
-
-            return $xml;
-        } catch (\Exception $e) {
-            echo $e->getMessage();
+        switch ($this->model) {
+            case '65':
+                $this->make = new \NFePHP\NFe\Make();
+                $this->tools = new \NFePHP\NFe\Tools($this->getSignData($order), $this->getCertificate($order));
+                $this->cupomFiscal($order);
+                break;
+            case '55':
+                $this->make = new \NFePHP\NFe\Make();
+                $this->tools = new \NFePHP\NFe\Tools($this->getSignData($order), $this->getCertificate($order));
+                $this->nfe($order);
+                break;
+            case '57':
+                $this->make = new \NFePHP\CTe\MakeCTe();
+                $this->tools = new \NFePHP\CTe\Tools($this->getSignData($order), $this->getCertificate($order));
+                $this->cte($order);
+                break;
+            default:
+                return;
+                break;
         }
+
+        $xml = $this->sign($order);
+        //$this->persist($order, $xml);
+
+        return $xml;
     }
 
     protected function nfe(Order $order)
