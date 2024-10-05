@@ -15,7 +15,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
  * @ORM\Table (name="order_invoice_tax", uniqueConstraints={@ORM\UniqueConstraint (name="order_id", columns={"order_id", "invoice_tax_id"}),@ORM\UniqueConstraint(name="invoice_type", columns={"issuer_id", "invoice_type", "order_id"})}, indexes={@ORM\Index (name="invoice_tax_id", columns={"invoice_tax_id"})})
  * @ORM\Entity
  */
-#[ApiResource(operations: [new Get(security: 'is_granted(\'ROLE_CLIENT\')')], formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']], normalizationContext: ['groups' => ['order_invoice_tax_read']], denormalizationContext: ['groups' => ['order_invoice_tax_write']])]
+#[ApiResource(operations: [new Get(security: 'is_granted(\'ROLE_CLIENT\')')], formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']], normalizationContext: ['groups' => ['order_invoice_tax:read']], denormalizationContext: ['groups' => ['order_invoice_tax:write']])]
 class OrderInvoiceTax
 {
     /**
@@ -33,7 +33,7 @@ class OrderInvoiceTax
      * @ORM\JoinColumns({
      *   @ORM\JoinColumn(name="invoice_tax_id", referencedColumnName="id")
      * })
-     * @Groups({"order_read"})
+     * @Groups({"order:read"})
      */
     private $invoiceTax;
     /**
@@ -58,7 +58,7 @@ class OrderInvoiceTax
      * @var string
      *
      * @ORM\Column(name="invoice_type", type="integer",  nullable=false)
-     * @Groups({"order_detail_status_read"})
+     * @Groups({"order_detail_status:read"})
      */
     private $invoiceType;
     public function __construct()
