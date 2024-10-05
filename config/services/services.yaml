@@ -2,6 +2,7 @@ services:
     _defaults:
         autowire: true
         autoconfigure: true
+        public: true
     ControleOnline\:
         resource: '../../src/*'
         exclude: '../src/{DependencyInjection,Entity,Resource,Migrations,Library,Tests,Kernel.php}'
