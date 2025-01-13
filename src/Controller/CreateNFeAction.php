@@ -19,7 +19,9 @@ class CreateNFeAction
     ) {}
 
 
-
+    /**
+     * @Route("/nfe/create", name="google_return", methods={"POST"})
+     */
     public function __invoke(Order $data, Request $request): JsonResponse
     {
         try {
