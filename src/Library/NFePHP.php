@@ -370,12 +370,12 @@ class NFePHP
 
         $dacteKey = $this->manager->getRepository(Config::class)->findOneBy([
             'people'  => $provider,
-            'config_key' => 'cert-file'
+            'configKey' => 'cert-file'
         ]);
 
         $dacteKeyPass = $this->manager->getRepository(Config::class)->findOneBy([
             'people'  => $provider,
-            'config_key' => 'cert-pass'
+            'configKey' => 'cert-pass'
         ]);
         if (!$dacteKey || !$dacteKeyPass)
             throw new \Exception("Key cert is required", 1);
