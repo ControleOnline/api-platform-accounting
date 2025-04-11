@@ -18,13 +18,19 @@ use Symfony\Component\Serializer\Annotation\Groups;
  * @ORM\Table (name="invoice_tax")
  * @ORM\Entity
  */
-#[ApiResource(operations: [new Get(security: 'is_granted(\'ROLE_CLIENT\')'), new Get(
+#[ApiResource(
+    operations: [new Get(security: 'is_granted(\'ROLE_CLIENT\')'), new Get(
 
-    security: 'is_granted(\'IS_AUTHENTICATED_ANONYMOUSLY\')',
-    uriTemplate: '/invoice_taxes/{id}/download-nf',
-    requirements: ['id' => '[\\w-]+'],
-    controller: DownloadOrderNFAction::class
-), new Post(uriTemplate: '/invoice_taxes/upload-nf', controller: \App\Controller\UploadOrderNFAction::class, deserialize: false, security: 'is_granted(\'ROLE_CLIENT\')', validationContext: ['groups' => ['Default', 'order_upload_nf']], openapiContext: ['consumes' => ['multipart/form-data']])], formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']], normalizationContext: ['groups' => ['invoice_tax:read']], denormalizationContext: ['groups' => ['invoice_tax:write']])]
+        security: 'is_granted(\'IS_AUTHENTICATED_ANONYMOUSLY\')',
+        uriTemplate: '/invoice_taxes/{id}/download-nf',
+        requirements: ['id' => '[\\w-]+'],
+        controller: DownloadOrderNFAction::class
+    )],
+    formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' =>
+    ['text/csv']],
+    normalizationContext: ['groups' => ['invoice_tax:read']],
+    denormalizationContext: ['groups' => ['invoice_tax:write']]
+)]
 class InvoiceTax
 {
     /**

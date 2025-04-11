@@ -3,7 +3,7 @@ doctrine:
         mappings:
             ControleOnline:
                 is_bundle: false
-                type: annotation
+                type: attribute
                 dir: "%kernel.project_dir%/modules/controleonline/accounting/src/Entity"
                 prefix: 'ControleOnline\Entity'
                 alias: ControleOnline
