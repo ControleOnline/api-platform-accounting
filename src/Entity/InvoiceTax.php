@@ -1,6 +1,7 @@
 <?php
 
-namespace ControleOnline\Entity;
+namespace ControleOnline\Entity; 
+use ControleOnline\Listener\LogListener;
 
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Get;
@@ -13,10 +14,6 @@ use Symfony\Component\Serializer\Annotation\Groups;
 
 /**
  * InvoiceTax
- *
- * @ORM\EntityListeners ({ControleOnline\Listener\LogListener::class})
- * @ORM\Table (name="invoice_tax")
- * @ORM\Entity
  */
 #[ApiResource(
     operations: [new Get(security: 'is_granted(\'ROLE_CLIENT\')'), new Get(
@@ -31,47 +28,46 @@ use Symfony\Component\Serializer\Annotation\Groups;
     normalizationContext: ['groups' => ['invoice_tax:read']],
     denormalizationContext: ['groups' => ['invoice_tax:write']]
 )]
+#[ORM\Table(name: 'invoice_tax')]
+#[ORM\EntityListeners([LogListener::class])]
+#[ORM\Entity]
 class InvoiceTax
 {
     /**
      * @var integer
-     *
-     * @ORM\Column(name="id", type="integer", nullable=false)
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="IDENTITY")
      */
+    #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
+    #[ORM\Id]
+    #[ORM\GeneratedValue(strategy: 'IDENTITY')]
     private $id;
     /**
      * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\OrderInvoiceTax", mappedBy="invoiceTax")
      */
+    #[ORM\OneToMany(targetEntity: \ControleOnline\Entity\OrderInvoiceTax::class, mappedBy: 'invoiceTax')]
     private $order;
     /**
      * @var string
-     *
-     * @ORM\Column(name="invoice", type="string",  nullable=false)
      */
+    #[ORM\Column(name: 'invoice', type: 'string', nullable: false)]
     private $invoice;
     /**
      * @var \Doctrine\Common\Collections\Collection
-     *
-     * @ORM\OneToMany(targetEntity="ControleOnline\Entity\ServiceInvoiceTax", mappedBy="service_invoice_tax")
      */
+    #[ORM\OneToMany(targetEntity: \ControleOnline\Entity\ServiceInvoiceTax::class, mappedBy: 'service_invoice_tax')]
     private $service_invoice_tax;
     /**
      * @var string
      *
-     * @ORM\Column(name="invoice_key", type="string",  nullable=true)
      * @Groups({"order:read"})
      */
+    #[ORM\Column(name: 'invoice_key', type: 'string', nullable: true)]
     private $invoiceKey;
     /**
      * @var string
      *
-     * @ORM\Column(name="invoice_number", type="integer",  nullable=false)
      * @Groups({"order:read"})
      */
+    #[ORM\Column(name: 'invoice_number', type: 'integer', nullable: false)]
     private $invoiceNumber;
     public function __construct()
     {
