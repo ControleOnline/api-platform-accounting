@@ -10,7 +10,8 @@ use ControleOnline\Entity\SalesInvoiceTax;
 use ControleOnline\Entity\OrderInvoiceTax;
 use Doctrine\ORM\EntityManagerInterface;
 use NFePHP\Common\Certificate;
-use Symfony\Component\Security\Core\Security;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface
+ AS Security;
 use NFePHP\CTe\Common\Standardize;
 use Symfony\Component\HttpKernel\KernelInterface;
 
