@@ -1,63 +1,55 @@
 <?php
 
-namespace ControleOnline\Entity;
+namespace ControleOnline\Entity; 
+use ControleOnline\Listener\LogListener;
 
 use Doctrine\ORM\Mapping as ORM;
 
 /**
  * ServiceInvoiceTax
- *
- * @ORM\Table(name="service_invoice_tax", uniqueConstraints={@ORM\UniqueConstraint(name="invoice_id", columns={"invoice_id", "invoice_tax_id"}),@ORM\UniqueConstraint(name="invoice_type", columns={"issuer_id", "invoice_type", "invoice_id"})}, indexes={@ORM\Index(name="invoice_tax_id", columns={"invoice_tax_id"})})
- * @ORM\Entity
- *  @ORM\EntityListeners({ControleOnline\Listener\LogListener::class})
  */
+#[ORM\Table(name: 'service_invoice_tax')]
+#[ORM\Index(name: 'invoice_tax_id', columns: ['invoice_tax_id'])]
+#[ORM\UniqueConstraint(name: 'invoice_id', columns: ['invoice_id', 'invoice_tax_id'])]
+#[ORM\UniqueConstraint(name: 'invoice_type', columns: ['issuer_id', 'invoice_type', 'invoice_id'])]
+#[ORM\Entity]
+#[ORM\EntityListeners([LogListener::class])]
 class ServiceInvoiceTax
 {
 
     /**
      * @var integer
-     *
-     * @ORM\Column(name="id", type="integer", nullable=false)
-     * @ORM\Id
-     * @ORM\GeneratedValue(strategy="IDENTITY")
      */
+    #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
+    #[ORM\Id]
+    #[ORM\GeneratedValue(strategy: 'IDENTITY')]
     private $id;
 
     /**
      * @var \ControleOnline\Entity\InvoiceTax
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\InvoiceTax", inversedBy="service_invoice_tax")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="invoice_tax_id", referencedColumnName="id")
-     * })
      */
+    #[ORM\JoinColumn(name: 'invoice_tax_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\InvoiceTax::class, inversedBy: 'service_invoice_tax')]
     private $service_invoice_tax;
 
     /**
      * @var \ControleOnline\Entity\Invoice
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\Invoice", inversedBy="service_invoice_tax")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="invoice_id", referencedColumnName="id")
-     * })
      */
+    #[ORM\JoinColumn(name: 'invoice_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Invoice::class, inversedBy: 'service_invoice_tax')]
     private $invoice;
 
     /**
      * @var \ControleOnline\Entity\People
-     *
-     * @ORM\ManyToOne(targetEntity="ControleOnline\Entity\People")
-     * @ORM\JoinColumns({
-     *   @ORM\JoinColumn(name="issuer_id", referencedColumnName="id")
-     * })
      */
+    #[ORM\JoinColumn(name: 'issuer_id', referencedColumnName: 'id')]
+    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\People::class)]
     private $issuer;
 
     /**
      * @var string
-     *
-     * @ORM\Column(name="invoice_type", type="integer",  nullable=false)
      */
+    #[ORM\Column(name: 'invoice_type', type: 'integer', nullable: false)]
     private $invoiceType;
 
     public function __construct()
