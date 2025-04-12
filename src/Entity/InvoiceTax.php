@@ -1,6 +1,7 @@
 <?php
 
-namespace ControleOnline\Entity; 
+namespace ControleOnline\Entity;
+
 use ControleOnline\Listener\LogListener;
 
 use ApiPlatform\Metadata\Post;
@@ -17,8 +18,7 @@ use Symfony\Component\Serializer\Annotation\Groups;
  */
 #[ApiResource(
     operations: [new Get(security: 'is_granted(\'ROLE_CLIENT\')'), new Get(
-
-        security: 'is_granted(\'IS_AUTHENTICATED_ANONYMOUSLY\')',
+        security: 'is_granted(\'PUBLIC_ACCESS\')',
         uriTemplate: '/invoice_taxes/{id}/download-nf',
         requirements: ['id' => '[\\w-]+'],
         controller: DownloadOrderNFAction::class
