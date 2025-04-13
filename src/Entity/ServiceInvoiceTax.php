@@ -1,6 +1,7 @@
 <?php
 
 namespace ControleOnline\Entity; 
+use Doctrine\Common\Collections\ArrayCollection;
 use ControleOnline\Listener\LogListener;
 
 use Doctrine\ORM\Mapping as ORM;
@@ -26,24 +27,24 @@ class ServiceInvoiceTax
     private $id;
 
     /**
-     * @var \ControleOnline\Entity\InvoiceTax
+     * @var InvoiceTax
      */
     #[ORM\JoinColumn(name: 'invoice_tax_id', referencedColumnName: 'id')]
-    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\InvoiceTax::class, inversedBy: 'service_invoice_tax')]
+    #[ORM\ManyToOne(targetEntity: InvoiceTax::class, inversedBy: 'service_invoice_tax')]
     private $service_invoice_tax;
 
     /**
-     * @var \ControleOnline\Entity\Invoice
+     * @var Invoice
      */
     #[ORM\JoinColumn(name: 'invoice_id', referencedColumnName: 'id')]
-    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\Invoice::class, inversedBy: 'service_invoice_tax')]
+    #[ORM\ManyToOne(targetEntity: Invoice::class, inversedBy: 'service_invoice_tax')]
     private $invoice;
 
     /**
-     * @var \ControleOnline\Entity\People
+     * @var People
      */
     #[ORM\JoinColumn(name: 'issuer_id', referencedColumnName: 'id')]
-    #[ORM\ManyToOne(targetEntity: \ControleOnline\Entity\People::class)]
+    #[ORM\ManyToOne(targetEntity: People::class)]
     private $issuer;
 
     /**
@@ -54,8 +55,8 @@ class ServiceInvoiceTax
 
     public function __construct()
     {
-        $this->invoice             = new \Doctrine\Common\Collections\ArrayCollection();
-        $this->service_invoice_tax = new \Doctrine\Common\Collections\ArrayCollection();
+        $this->invoice             = new ArrayCollection();
+        $this->service_invoice_tax = new ArrayCollection();
     }
 
     /**
@@ -71,10 +72,10 @@ class ServiceInvoiceTax
     /**
      * Set service_invoice_tax
      *
-     * @param \ControleOnline\Entity\InvoiceTax $service_invoice_tax
+     * @param InvoiceTax $service_invoice_tax
      * @return InvoiceTax
      */
-    public function setServiceInvoiceTax(\ControleOnline\Entity\InvoiceTax $service_invoice_tax = null)
+    public function setServiceInvoiceTax(InvoiceTax $service_invoice_tax = null)
     {
         $this->service_invoice_tax = $service_invoice_tax;
 
@@ -84,7 +85,7 @@ class ServiceInvoiceTax
     /**
      * Get service_invoice_tax
      *
-     * @return \ControleOnline\Entity\InvoiceTax
+     * @return InvoiceTax
      */
     public function getServiceInvoiceTax()
     {
@@ -94,10 +95,10 @@ class ServiceInvoiceTax
     /**
      * Set invoice
      *
-     * @param \ControleOnline\Entity\Invoice $invoice
+     * @param Invoice $invoice
      * @return Invoice
      */
-    public function setInvoice(\ControleOnline\Entity\Invoice $invoice = null)
+    public function setInvoice(Invoice $invoice = null)
     {
         $this->invoice = $invoice;
 
@@ -107,7 +108,7 @@ class ServiceInvoiceTax
     /**
      * Get invoice
      *
-     * @return \ControleOnline\Entity\Invoice
+     * @return Invoice
      */
     public function getInvoice()
     {
@@ -140,10 +141,10 @@ class ServiceInvoiceTax
     /**
      * Set issuer
      *
-     * @param \ControleOnline\Entity\People $issuer
+     * @param People $issuer
      * @return People
      */
-    public function setIssuer(\ControleOnline\Entity\People $issuer = null)
+    public function setIssuer(People $issuer = null)
     {
         $this->issuer = $issuer;
 
@@ -153,7 +154,7 @@ class ServiceInvoiceTax
     /**
      * Get issuer
      *
-     * @return \ControleOnline\Entity\People
+     * @return People
      */
     public function getIssuer()
     {
