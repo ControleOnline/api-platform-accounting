@@ -2,6 +2,8 @@
 
 namespace ControleOnline\Entity;
 
+use Symfony\Component\Serializer\Attribute\Groups;
+
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
 use ControleOnline\Listener\LogListener;
@@ -25,12 +27,12 @@ class OrderInvoiceTax
     #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'IDENTITY')]
-    #[ApiResource(normalizationContext: ['groups' => ['order_invoice_tax:read']])]
+    #[Groups(['order_invoice_tax:read'])]
     private $id;
 
     #[ORM\JoinColumn(name: 'invoice_tax_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: InvoiceTax::class, inversedBy: 'order')]
-    #[ApiResource(normalizationContext: ['groups' => ['order_invoice_tax:read', 'order:read']])]
+    #[Groups(['order_invoice_tax:read', 'order:read'])]
     private $invoiceTax;
 
     #[ORM\JoinColumn(name: 'order_id', referencedColumnName: 'id')]
@@ -42,7 +44,7 @@ class OrderInvoiceTax
     private $issuer;
 
     #[ORM\Column(name: 'invoice_type', type: 'integer', nullable: false)]
-    #[ApiResource(normalizationContext: ['groups' => ['order_invoice_tax:read', 'order_detail_status:read']])]
+    #[Groups(['order_invoice_tax:read', 'order_detail_status:read'])]
     private $invoiceType;
 
     public function __construct()

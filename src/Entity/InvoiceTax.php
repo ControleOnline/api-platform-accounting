@@ -2,6 +2,8 @@
 
 namespace ControleOnline\Entity;
 
+use Symfony\Component\Serializer\Attribute\Groups;
+
 use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
@@ -34,25 +36,25 @@ class InvoiceTax
     #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'IDENTITY')]
-    #[ApiResource(normalizationContext: ['groups' => ['invoice_tax:read']])]
+    #[Groups(['invoice_tax:read'])]
     private $id;
 
     #[ORM\OneToMany(targetEntity: OrderInvoiceTax::class, mappedBy: 'invoiceTax')]
     private $order;
 
     #[ORM\Column(name: 'invoice', type: 'string', nullable: false)]
-    #[ApiResource(normalizationContext: ['groups' => ['invoice_tax:read', 'invoice_tax:write']])]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
     private $invoice;
 
     #[ORM\OneToMany(targetEntity: ServiceInvoiceTax::class, mappedBy: 'service_invoice_tax')]
     private $service_invoice_tax;
 
     #[ORM\Column(name: 'invoice_key', type: 'string', nullable: true)]
-    #[ApiResource(normalizationContext: ['groups' => ['invoice_tax:read', 'order:read']])]
+    #[Groups(['invoice_tax:read', 'order:read'])]
     private $invoiceKey;
 
     #[ORM\Column(name: 'invoice_number', type: 'integer', nullable: false)]
-    #[ApiResource(normalizationContext: ['groups' => ['invoice_tax:read', 'order:read']])]
+    #[Groups(['invoice_tax:read', 'order:read'])]
     private $invoiceNumber;
 
     public function __construct()
