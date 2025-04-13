@@ -2,29 +2,27 @@
 
 namespace ControleOnline\Entity;
 
-use ControleOnline\Listener\LogListener;
-
-use ApiPlatform\Metadata\Post;
-use ApiPlatform\Metadata\Get;
-use ApiPlatform\Metadata\ApiResource;
-use ApiPlatform\Metadata\ApiProperty;
 use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\Post;
 use ControleOnline\Controller\DownloadOrderNFAction;
+use ControleOnline\Listener\LogListener;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
-use Symfony\Component\Serializer\Annotation\Groups;
 
-/**
- * InvoiceTax
- */
 #[ApiResource(
-    operations: [new Get(security: 'is_granted(\'ROLE_CLIENT\')'), new Get(
-        security: 'is_granted(\'PUBLIC_ACCESS\')',
-        uriTemplate: '/invoice_taxes/{id}/download-nf',
-        requirements: ['id' => '[\\w-]+'],
-        controller: DownloadOrderNFAction::class
-    )],
-    formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' =>
-    ['text/csv']],
+    operations: [
+        new Get(security: 'is_granted(\'ROLE_CLIENT\')'),
+        new Get(
+            security: 'is_granted(\'PUBLIC_ACCESS\')',
+            uriTemplate: '/invoice_taxes/{id}/download-nf',
+            requirements: ['id' => '[\\w-]+'],
+            controller: DownloadOrderNFAction::class
+        ),
+    ],
+    formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
     normalizationContext: ['groups' => ['invoice_tax:read']],
     denormalizationContext: ['groups' => ['invoice_tax:write']]
 )]
@@ -33,170 +31,101 @@ use Symfony\Component\Serializer\Annotation\Groups;
 #[ORM\Entity]
 class InvoiceTax
 {
-    /**
-     * @var integer
-     */
     #[ORM\Column(name: 'id', type: 'integer', nullable: false)]
     #[ORM\Id]
     #[ORM\GeneratedValue(strategy: 'IDENTITY')]
+    #[ApiResource(normalizationContext: ['groups' => ['invoice_tax:read']])]
     private $id;
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     */
-    #[ORM\OneToMany(targetEntity: \ControleOnline\Entity\OrderInvoiceTax::class, mappedBy: 'invoiceTax')]
+
+    #[ORM\OneToMany(targetEntity: OrderInvoiceTax::class, mappedBy: 'invoiceTax')]
     private $order;
-    /**
-     * @var string
-     */
+
     #[ORM\Column(name: 'invoice', type: 'string', nullable: false)]
+    #[ApiResource(normalizationContext: ['groups' => ['invoice_tax:read', 'invoice_tax:write']])]
     private $invoice;
-    /**
-     * @var \Doctrine\Common\Collections\Collection
-     */
-    #[ORM\OneToMany(targetEntity: \ControleOnline\Entity\ServiceInvoiceTax::class, mappedBy: 'service_invoice_tax')]
+
+    #[ORM\OneToMany(targetEntity: ServiceInvoiceTax::class, mappedBy: 'service_invoice_tax')]
     private $service_invoice_tax;
-    /**
-     * @var string
-     *
-     * @Groups({"order:read"})
-     */
+
     #[ORM\Column(name: 'invoice_key', type: 'string', nullable: true)]
+    #[ApiResource(normalizationContext: ['groups' => ['invoice_tax:read', 'order:read']])]
     private $invoiceKey;
-    /**
-     * @var string
-     *
-     * @Groups({"order:read"})
-     */
+
     #[ORM\Column(name: 'invoice_number', type: 'integer', nullable: false)]
+    #[ApiResource(normalizationContext: ['groups' => ['invoice_tax:read', 'order:read']])]
     private $invoiceNumber;
+
     public function __construct()
     {
-        $this->order = new \Doctrine\Common\Collections\ArrayCollection();
-        $this->service_invoice_tax = new \Doctrine\Common\Collections\ArrayCollection();
+        $this->order = new ArrayCollection();
+        $this->service_invoice_tax = new ArrayCollection();
     }
-    /**
-     * Get id
-     *
-     * @return integer
-     */
+
     public function getId()
     {
         return $this->id;
     }
-    /**
-     * Add OrderInvoice
-     *
-     * @param \ControleOnline\Entity\OrderInvoice $order
-     * @return People
-     */
-    public function addOrder(\ControleOnline\Entity\OrderInvoice $order)
+
+    public function addOrder(OrderInvoice $order)
     {
         $this->order[] = $order;
         return $this;
     }
-    /**
-     * Remove OrderInvoice
-     *
-     * @param \ControleOnline\Entity\OrderInvoice $order
-     */
-    public function removeOrder(\ControleOnline\Entity\OrderInvoice $order)
+
+    public function removeOrder(OrderInvoice $order)
     {
         $this->order->removeElement($order);
     }
-    /**
-     * Get OrderInvoice
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
+
     public function getOrder()
     {
         return $this->order;
     }
-    /**
-     * Set invoice
-     *
-     * @param string $invoice
-     * @return Order
-     */
+
     public function setInvoice($invoice)
     {
         $this->invoice = $invoice;
         return $this;
     }
-    /**
-     * Get invoice
-     *
-     * @return string
-     */
+
     public function getInvoice()
     {
         return $this->invoice;
     }
-    /**
-     * Set invoiceKey
-     *
-     * @param string $invoice_number
-     * @return InvoiceTax
-     */
+
     public function setInvoiceKey($invoice_key)
     {
         $this->invoiceKey = $invoice_key;
         return $this;
     }
-    /**
-     * Get invoiceNumber
-     *
-     * @return string
-     */
+
     public function getInvoiceKey()
     {
         return $this->invoiceKey;
     }
-    /**
-     * Set invoiceNumber
-     *
-     * @param integer $invoice_number
-     * @return InvoiceTax
-     */
+
     public function setInvoiceNumber($invoice_number)
     {
         $this->invoiceNumber = $invoice_number;
         return $this;
     }
-    /**
-     * Get invoiceNumber
-     *
-     * @return integer
-     */
+
     public function getInvoiceNumber()
     {
         return $this->invoiceNumber;
     }
-    /**
-     * Add ServiceInvoiceTax
-     *
-     * @param \ControleOnline\Entity\ServiceInvoiceTax $service_invoice_tax
-     * @return InvoiceTax
-     */
-    public function addServiceInvoiceTax(\ControleOnline\Entity\ServiceInvoiceTax $service_invoice_tax)
+
+    public function addServiceInvoiceTax(ServiceInvoiceTax $service_invoice_tax)
     {
         $this->service_invoice_tax[] = $service_invoice_tax;
         return $this;
     }
-    /**
-     * Remove ServiceInvoiceTax
-     *
-     * @param \ControleOnline\Entity\ServiceInvoiceTax $service_invoice_tax
-     */
-    public function removeServiceInvoiceTax(\ControleOnline\Entity\ServiceInvoiceTax $service_invoice_tax)
+
+    public function removeServiceInvoiceTax(ServiceInvoiceTax $service_invoice_tax)
     {
         $this->service_invoice_tax->removeElement($service_invoice_tax);
     }
-    /**
-     * Get ServiceInvoiceTax
-     *
-     * @return \Doctrine\Common\Collections\Collection
-     */
+
     public function getServiceInvoiceTax()
     {
         return $this->service_invoice_tax;
