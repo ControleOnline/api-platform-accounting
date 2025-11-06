@@ -16,7 +16,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\UniqueConstraint(name: 'invoice_id', columns: ['invoice_id', 'invoice_tax_id'])]
 #[ORM\UniqueConstraint(name: 'invoice_type', columns: ['issuer_id', 'invoice_type', 'invoice_id'])]
 #[ORM\Entity]
-#[ORM\EntityListeners([LogListener::class])]
+
 class ServiceInvoiceTax
 {
 

@@ -20,7 +20,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'invoice_tax_id', columns: ['invoice_tax_id'])]
 #[ORM\UniqueConstraint(name: 'order_id', columns: ['order_id', 'invoice_tax_id'])]
 #[ORM\UniqueConstraint(name: 'invoice_type', columns: ['issuer_id', 'invoice_type', 'order_id'])]
-#[ORM\EntityListeners([LogListener::class])]
+
 #[ORM\Entity]
 class OrderInvoiceTax
 {

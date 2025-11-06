@@ -29,7 +29,7 @@ use Doctrine\ORM\Mapping as ORM;
     denormalizationContext: ['groups' => ['invoice_tax:write']]
 )]
 #[ORM\Table(name: 'invoice_tax')]
-#[ORM\EntityListeners([LogListener::class])]
+
 #[ORM\Entity]
 class InvoiceTax
 {
