@@ -6,7 +6,7 @@ use Symfony\Component\Serializer\Attribute\Groups;
 
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
-use ControleOnline\Listener\LogListener;
+
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 
