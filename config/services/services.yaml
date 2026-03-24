@@ -5,7 +5,7 @@ services:
         public: true
     ControleOnline\:
         resource: '../../src/*'
-        exclude: '../src/{DependencyInjection,Entity,Resource,Migrations,Library,Tests,Kernel.php}'
+        exclude: '../../src/{DependencyInjection,Entity,Resource,Migrations,Library,Message,Tests,Kernel.php}'
     ControleOnline\Repository\:
         resource: '../../src/Repository'
         tags: ['doctrine.repository_service']
