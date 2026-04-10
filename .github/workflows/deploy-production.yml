@@ -19,7 +19,7 @@ jobs:
           port: ${{ secrets.PORT }}        
           script: |
                   cd ~/sistemas/controleonline/api/modules/controleonline/accounting
-                  git checkout master
+                  git reset --hard origin/master
                   git pull origin master
                   cd ~/sistemas/controleonline/api/
                   php bin/console cache:clear
