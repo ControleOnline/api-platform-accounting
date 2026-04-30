@@ -11,7 +11,7 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ApiResource(
-    operations: [new Get(security: 'is_granted(\'ROLE_CLIENT\')')],
+    operations: [new Get(security: 'is_granted(\'ROLE_HUMAN\')')],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
     normalizationContext: ['groups' => ['order_invoice_tax:read']],
     denormalizationContext: ['groups' => ['order_invoice_tax:write']]

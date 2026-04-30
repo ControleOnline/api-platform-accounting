@@ -16,7 +16,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ApiResource(
     operations: [
-        new Get(security: 'is_granted(\'ROLE_CLIENT\')'),
+        new Get(security: 'is_granted(\'ROLE_HUMAN\')'),
         new Get(
             security: 'is_granted(\'PUBLIC_ACCESS\')',
             uriTemplate: '/invoice_taxes/{id}/download-nf',
