@@ -19,16 +19,21 @@
 namespace ControleOnline\Service;
 
 use ControleOnline\Entity\Order;
-use ControleOnline\Entity\SalesInvoiceTax;
+use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Entity\OrderInvoiceTax;
 use ControleOnline\Library\NFePHP;
 
 class NFeService extends NFePHP
 {
-    public function createNfe(Order $order, $model, $version =  '4.00')
+    /**
+     * Build, sign and persist a fiscal document for the order.
+     * Model 65 = NFC-e (cupom), 55 = NF-e, 57 = CT-e.
+     *
+     * @return InvoiceTax
+     */
+    public function createNfe(Order $order, $model = '65', $version = '4.00'): InvoiceTax
     {
-
-        $this->model = $model;
+        $this->model = (string) $model;
         $this->version = $version;
 
         switch ($this->model) {
@@ -48,14 +53,37 @@ class NFeService extends NFePHP
                 $this->cte($order);
                 break;
             default:
-                return;
-                break;
+                throw new \InvalidArgumentException(sprintf('Unsupported NF model: %s', $this->model));
         }
 
         $xml = $this->sign($order);
-        //$this->persist($order, $xml);
 
-        return $xml;
+        return $this->persistInvoiceTax($order, $xml, (int) $this->model);
+    }
+
+    /**
+     * Persist InvoiceTax + OrderInvoiceTax link for the order.
+     */
+    protected function persistInvoiceTax(Order $order, string $xml, int $invoiceType): InvoiceTax
+    {
+        $provider = $order->getProvider();
+        $invoiceTax = new InvoiceTax();
+        $invoiceTax->setInvoice($xml);
+        $invoiceTax->setInvoiceNumber($this->getNfNumber($xml));
+
+        $this->manager->persist($invoiceTax);
+        $this->manager->flush();
+
+        $orderInvoiceTax = new OrderInvoiceTax();
+        $orderInvoiceTax->setOrder($order);
+        $orderInvoiceTax->setInvoiceType($invoiceType);
+        $orderInvoiceTax->setInvoiceTax($invoiceTax);
+        $orderInvoiceTax->setIssuer($provider);
+
+        $this->manager->persist($orderInvoiceTax);
+        $this->manager->flush();
+
+        return $invoiceTax;
     }
 
     protected function nfe(Order $order)
