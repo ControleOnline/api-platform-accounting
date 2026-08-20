@@ -6,7 +6,7 @@ use ControleOnline\Entity\Config;
 use ControleOnline\Entity\File;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\Product;
-use ControleOnline\Entity\SalesInvoiceTax;
+use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Entity\OrderInvoiceTax;
 use Doctrine\ORM\EntityManagerInterface;
 use NFePHP\Common\Certificate;
@@ -570,7 +570,7 @@ class NFePHP
     protected function persist(Order $order, $xml)
     {
         $provider = $order->getProvider();
-        $invoiceTax = new SalesInvoiceTax();
+        $invoiceTax = new InvoiceTax();
         $invoiceTax->setInvoice($xml);
         $invoiceTax->setInvoiceNumber($this->getNfNumber($xml));
 
