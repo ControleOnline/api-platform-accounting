@@ -23,6 +23,10 @@ class InvoicesWithoutCteService
             ->from(InvoiceTax::class, 'invoiceTax')
             ->leftJoin('invoiceTax.issuer', 'issuer')
             ->leftJoin('invoiceTax.address', 'address')
+            ->leftJoin('invoiceTax.client', 'client')
+            ->leftJoin('invoiceTax.provider', 'provider')
+            ->leftJoin('invoiceTax.carrier', 'carrier')
+            ->leftJoin('invoiceTax.company', 'company')
             ->andWhere('invoiceTax.cte IS NULL')
             ->andWhere('invoiceTax.invoiceModel IS NULL OR invoiceTax.invoiceModel IN (:nfModels)')
             ->setParameter('nfModels', self::NF_MODELS)
@@ -88,7 +92,11 @@ class InvoicesWithoutCteService
     public function serializeInvoice(InvoiceTax $invoice): array
     {
         $issuer = $invoice->getIssuer();
-        $address = $invoice->getAddress();
+        $company = $invoice->getCompany() ?: $issuer;
+        $client = $invoice->getClient();
+        $provider = $invoice->getProvider();
+        $carrier = $invoice->getCarrier();
+
         return [
             '@id' => '/invoice_taxes/' . $invoice->getId(),
             'id' => (int) $invoice->getId(),
@@ -97,13 +105,39 @@ class InvoicesWithoutCteService
             'invoiceModel' => $invoice->getInvoiceModel(),
             'invoiceTotal' => $invoice->getInvoiceTotal() === null ? 0 : (float) $invoice->getInvoiceTotal(),
             'cteId' => $invoice->getCte()?->getId(),
-            'companyId' => $issuer instanceof People ? (int) $issuer->getId() : null,
-            'companyName' => $issuer instanceof People
-                ? trim((string) ($issuer->getAlias() ?: $issuer->getName()) ?: 'Empresa não informada')
-                : 'Empresa não informada',
-            'addressId' => $address instanceof Address ? (int) $address->getId() : null,
-            'addressLabel' => $this->formatAddress($address),
+            'companyId' => $this->peopleId($company),
+            'companyName' => $this->peopleName($company, 'Empresa não informada'),
+            'issuerId' => $this->peopleId($issuer),
+            'issuerName' => $this->peopleName($issuer, 'Emitente não informado'),
+            'clientId' => $this->peopleId($client),
+            'clientName' => $this->peopleName($client, 'Destinatário não informado'),
+            'providerId' => $this->peopleId($provider),
+            'providerName' => $this->peopleName($provider, 'Remetente não informado'),
+            'carrierId' => $this->peopleId($carrier),
+            'carrierName' => $this->peopleName($carrier, 'Transportadora não informada'),
+            'addressId' => $invoice->getAddress() instanceof Address ? (int) $invoice->getAddress()->getId() : null,
+            'addressLabel' => $this->formatAddress($invoice->getAddress()),
+            'providerAddressLabel' => $this->formatAddress($invoice->getProviderAddress()),
+            'clientAddressLabel' => $this->formatAddress($invoice->getClientAddress()),
+            'carrierAddressLabel' => $this->formatAddress($invoice->getCarrierAddress()),
         ];
+    }
+
+    private function peopleId(?People $people): ?int
+    {
+        return $people instanceof People ? (int) $people->getId() : null;
+    }
+
+    private function peopleName(?People $people, string $fallback): string
+    {
+        if (!$people instanceof People) {
+            return $fallback;
+        }
+
+        $alias = method_exists($people, 'getAlias') ? trim((string) $people->getAlias()) : '';
+        $name = method_exists($people, 'getName') ? trim((string) $people->getName()) : '';
+
+        return $alias !== '' ? $alias : ($name !== '' ? $name : $fallback);
     }
 
     private function busyInvoiceIds(): array
