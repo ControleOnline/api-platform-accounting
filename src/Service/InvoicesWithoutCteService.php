@@ -16,9 +16,6 @@ class InvoicesWithoutCteService
     {
     }
 
-    /**
-     * @return array{member: array<int, array<string, mixed>>, groups: array<int, array<string, mixed>>, totalItems: int, totalValue: float}
-     */
     public function list(?int $issuerId = null): array
     {
         $qb = $this->entityManager->createQueryBuilder()
@@ -36,8 +33,12 @@ class InvoicesWithoutCteService
             $qb->andWhere('issuer.id = :issuerId')->setParameter('issuerId', $issuerId);
         }
 
-        /** @var InvoiceTax[] $invoices */
         $invoices = $qb->getQuery()->getResult();
+        $busyIds = $this->busyInvoiceIds();
+        $invoices = array_values(array_filter(
+            $invoices,
+            static fn(InvoiceTax $invoice) => !in_array((int) $invoice->getId(), $busyIds, true)
+        ));
         $items = array_map(fn(InvoiceTax $invoice) => $this->serializeInvoice($invoice), $invoices);
         $groups = $this->groupInvoices($items);
         $totalValue = array_reduce(
@@ -55,14 +56,9 @@ class InvoicesWithoutCteService
         ];
     }
 
-    /**
-     * @param array<int, array<string, mixed>> $items
-     * @return array<int, array<string, mixed>>
-     */
     public function groupInvoices(array $items): array
     {
         $groups = [];
-
         foreach ($items as $item) {
             $key = $this->groupKey($item);
             if (!isset($groups[$key])) {
@@ -77,37 +73,22 @@ class InvoicesWithoutCteService
                     'totalValue' => 0.0,
                 ];
             }
-
             $groups[$key]['invoices'][] = $item;
             $groups[$key]['invoiceCount']++;
-            $groups[$key]['totalValue'] = round(
-                $groups[$key]['totalValue'] + (float) ($item['invoiceTotal'] ?? 0),
-                2
-            );
+            $groups[$key]['totalValue'] = round($groups[$key]['totalValue'] + (float) ($item['invoiceTotal'] ?? 0), 2);
         }
-
         return array_values($groups);
     }
 
-    /**
-     * @param array<string, mixed> $item
-     */
     public function groupKey(array $item): string
     {
-        $companyId = (string) ($item['companyId'] ?? 'none');
-        $addressId = (string) ($item['addressId'] ?? 'none');
-
-        return $companyId . ':' . $addressId;
+        return (string) ($item['companyId'] ?? 'none') . ':' . (string) ($item['addressId'] ?? 'none');
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     public function serializeInvoice(InvoiceTax $invoice): array
     {
         $issuer = $invoice->getIssuer();
         $address = $invoice->getAddress();
-
         return [
             '@id' => '/invoice_taxes/' . $invoice->getId(),
             'id' => (int) $invoice->getId(),
@@ -125,17 +106,27 @@ class InvoicesWithoutCteService
         ];
     }
 
+    private function busyInvoiceIds(): array
+    {
+        try {
+            $ids = $this->entityManager->getConnection()->fetchFirstColumn(
+                'SELECT id FROM invoice_tax WHERE invoice_task_id IS NOT NULL'
+            );
+            return array_map('intval', $ids ?: []);
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
     private function formatAddress(?Address $address): string
     {
         if (!$address instanceof Address) {
             return 'Endereço não informado';
         }
-
         $street = method_exists($address, 'getStreet') ? $address->getStreet() : null;
         $district = $street && method_exists($street, 'getDistrict') ? $street->getDistrict() : null;
         $city = $district && method_exists($district, 'getCity') ? $district->getCity() : null;
         $state = $city && method_exists($city, 'getState') ? $city->getState() : null;
-
         $parts = array_filter([
             $street && method_exists($street, 'getStreet') ? $street->getStreet() : null,
             method_exists($address, 'getNumber') ? $address->getNumber() : null,
@@ -143,7 +134,6 @@ class InvoicesWithoutCteService
             $city && method_exists($city, 'getCity') ? $city->getCity() : null,
             $state && method_exists($state, 'getUf') ? $state->getUf() : null,
         ]);
-
         return $parts === [] ? 'Endereço não informado' : implode(', ', $parts);
     }
 }
