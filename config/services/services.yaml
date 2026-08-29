@@ -3,6 +3,11 @@ services:
         autowire: true
         autoconfigure: true
         public: true
+
+    _instanceof:
+        ControleOnline\Service\Imports\ImportProcessorInterface:
+            tags: ['app.import_processor']
+
     ControleOnline\:
         resource: '../../src/*'
         exclude: '../../src/{DependencyInjection,Entity,Resource,Migrations,Library,Message,Tests,Kernel.php}'
@@ -16,4 +21,4 @@ services:
         resource: '../../src/Command'
         tags: ['console.command']
     ControleOnline\Filter\:
-        resource: '../../src/Filter'            
+        resource: '../../src/Filter'
