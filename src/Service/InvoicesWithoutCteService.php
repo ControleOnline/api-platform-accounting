@@ -131,6 +131,7 @@ class InvoicesWithoutCteService
             'invoiceModel' => $invoice->getInvoiceModel(),
             'invoiceTotal' => $invoice->getInvoiceTotal() === null ? 0 : (float) $invoice->getInvoiceTotal(),
             'weight' => $this->extractWeight(is_string($xml) ? $xml : null),
+            'rntrc' => $this->resolveRntrc($carrier, $company, $issuer),
             'cteId' => $invoice->getCte()?->getId(),
             'companyId' => $this->peopleId($company),
             'companyName' => $this->peopleName($company, 'Empresa não informada'),
@@ -150,6 +151,55 @@ class InvoicesWithoutCteService
         ];
     }
 
+    private function resolveRntrc(?People ...$peopleList): string
+    {
+        $ids = [];
+        foreach ($peopleList as $people) {
+            if ($people instanceof People) {
+                $ids[] = (int) $people->getId();
+            }
+        }
+        $ids = array_values(array_unique(array_filter($ids)));
+        if (!$ids) {
+            return '';
+        }
+
+        try {
+            $document = $this->entityManager->getConnection()->fetchOne(
+                'SELECT d.document
+                 FROM document d
+                 INNER JOIN document_type t ON t.id = d.document_type_id
+                 WHERE d.people_id IN (?) AND (
+                    UPPER(t.document_type) LIKE ? OR UPPER(t.document_type) LIKE ?
+                 )
+                 ORDER BY d.id DESC',
+                [$ids, '%RNTRC%', '%ANTT%'],
+                [\Doctrine\DBAL\Connection::PARAM_INT_ARRAY, \PDO::PARAM_STR, \PDO::PARAM_STR]
+            );
+            if (is_string($document) && trim($document) !== '') {
+                return trim($document);
+            }
+        } catch (\Throwable) {
+        }
+
+        try {
+            $config = $this->entityManager->getConnection()->fetchOne(
+                'SELECT c.value
+                 FROM config c
+                 WHERE c.people_id IN (?) AND c.config_key = ?
+                 ORDER BY c.id DESC',
+                [$ids, 'receita-federal-cte-rntrc'],
+                [\Doctrine\DBAL\Connection::PARAM_INT_ARRAY, \PDO::PARAM_STR]
+            );
+            if (is_string($config) && trim($config) !== '') {
+                return trim($config);
+            }
+        } catch (\Throwable) {
+        }
+
+        return '';
+    }
+
     private function extractWeight(?string $xml): float
     {
         if (!$xml) {
@@ -157,7 +207,7 @@ class InvoicesWithoutCteService
         }
 
         $total = 0.0;
-        if (preg_match_all('/<(?:pesoB|pesoL)>([^<]+)<\/(?:pesoB|pesoL)>/i', $xml, $matches)) {
+        if (preg_match_all('/<pesoB>([^<]+)<\/pesoB>/i', $xml, $matches)) {
             foreach ($matches[1] as $value) {
                 $total += (float) str_replace(',', '.', trim((string) $value));
             }
