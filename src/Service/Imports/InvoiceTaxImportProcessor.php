@@ -149,7 +149,10 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
     private function extractXmlEntries(string $content, string $fallbackName): array
     {
         if ($this->looksLikeXml($content)) {
-            return [['name' => $this->xmlFileName($fallbackName), 'content' => $content]];
+            return [[
+                'name' => $this->xmlFileName($fallbackName),
+                'content' => $content,
+            ]];
         }
 
         $tempPath = tempnam(sys_get_temp_dir(), 'nfe_zip_');
@@ -158,6 +161,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         }
 
         file_put_contents($tempPath, $content);
+
         $zip = new \ZipArchive();
         if ($zip->open($tempPath) !== true) {
             @unlink($tempPath);
@@ -168,24 +172,37 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $stat = $zip->statIndex($i);
             $filename = $stat['name'] ?? '';
+
             if ($filename === '' || str_ends_with($filename, '/')) {
                 continue;
             }
+
             if (strtolower(pathinfo($filename, PATHINFO_EXTENSION)) !== 'xml') {
                 continue;
             }
+
             $xmlContent = $zip->getFromIndex($i);
             if (is_string($xmlContent) && trim($xmlContent) !== '') {
-                $entries[] = ['name' => basename($filename), 'content' => $xmlContent];
+                $entries[] = [
+                    'name' => basename($filename),
+                    'content' => $xmlContent,
+                ];
             }
         }
+
         $zip->close();
         @unlink($tempPath);
+
         return $entries;
     }
 
-    private function persistInvoiceTax(?People $company, string $filename, string $xmlContent, array $parsed, mixed $statusOpen): InvoiceTax
-    {
+    private function persistInvoiceTax(
+        ?People $company,
+        string $filename,
+        string $xmlContent,
+        array $parsed,
+        mixed $statusOpen
+    ): InvoiceTax {
         $providerData = is_array($parsed['provider'] ?? null) ? $parsed['provider'] : null;
         $clientData = is_array($parsed['client'] ?? null) ? $parsed['client'] : null;
         $carrierData = is_array($parsed['carrier'] ?? null) ? $parsed['carrier'] : null;
@@ -208,10 +225,19 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $invoiceTax = $this->findInvoiceTax($parsed['key'] ?? '', $parsed['number'] ?? null) ?? new InvoiceTax();
 
         if (!$invoiceTax->getFile()) {
-            $xmlFile = $this->fileService->addFile($company, $xmlContent, 'invoice_tax', $filename, 'application', 'xml', false);
+            $xmlFile = $this->fileService->addFile(
+                $company,
+                $xmlContent,
+                'invoice_tax',
+                $filename,
+                'application',
+                'xml',
+                false
+            );
             $invoiceTax->setFile($xmlFile);
         }
 
+        $invoiceTax->setInvoice($xmlContent);
         $invoiceTax->setInvoiceKey($parsed['key'] ?? '');
         $invoiceTax->setInvoiceNumber((int) ($parsed['number'] ?? 0));
         $invoiceTax->setInvoiceModel($parsed['model'] ?? null);
@@ -227,6 +253,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $invoiceTax->setCarrierAddress($carrierAddress);
         $invoiceTax->setAddress($clientAddress ?? $providerAddress ?? $carrierAddress);
         $this->entityManager->persist($invoiceTax);
+
         return $invoiceTax;
     }
 
@@ -236,10 +263,12 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         if ($key !== '') {
             return $this->entityManager->getRepository(InvoiceTax::class)->findOneBy(['invoiceKey' => $key]);
         }
+
         $number = (int) $number;
         if ($number > 0) {
             return $this->entityManager->getRepository(InvoiceTax::class)->findOneBy(['invoiceNumber' => $number]);
         }
+
         return null;
     }
 
@@ -261,6 +290,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
             if (($party['name'] ?? '') !== '' && $people->getName() === 'NAME NOT GIVEN') {
                 $people->setName($party['name']);
             }
+
             return $people;
         }
 
@@ -270,9 +300,11 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $people->setEnabled(true);
         $people->setPeopleType($documentType === 'CNPJ' ? 'J' : 'F');
         $people->setLanguage($this->resolveDefaultLanguage());
+
         if (($party['stateRegistration'] ?? '') !== '') {
             $people->addOtherInformations('stateRegistration', $party['stateRegistration']);
         }
+
         $this->entityManager->persist($people);
         $this->entityManager->flush();
 
@@ -282,6 +314,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $document->setPeople($people);
         $this->entityManager->persist($document);
         $this->entityManager->flush();
+
         return $people;
     }
 
@@ -295,14 +328,17 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $documentTypeEntity = $this->entityManager->getRepository(DocumentType::class)->findOneBy([
             'documentType' => $documentType,
         ]);
+
         if ($documentTypeEntity instanceof DocumentType) {
             return $documentTypeEntity;
         }
+
         $documentTypeEntity = new DocumentType();
         $documentTypeEntity->setDocumentType($documentType);
         $documentTypeEntity->setPeopleType($documentType === 'CNPJ' ? 'J' : 'F');
         $this->entityManager->persist($documentTypeEntity);
         $this->entityManager->flush();
+
         return $documentTypeEntity;
     }
 
@@ -311,6 +347,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         if (!$people instanceof People || !is_array($party['address'] ?? null)) {
             return null;
         }
+
         return $this->resolveAddress($people, $party['address']);
     }
 
@@ -321,17 +358,27 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $districtName = trim((string) ($data['district'] ?? ''));
         $cityName = trim((string) ($data['city'] ?? ''));
         $stateUf = strtoupper(trim((string) ($data['state'] ?? '')));
+
         if ($postalCode === '' || $streetName === '' || $districtName === '' || $cityName === '' || $stateUf === '') {
             return null;
         }
+
         $state = $this->entityManager->getRepository(State::class)->findOneBy(['uf' => $stateUf]);
         if (!$state instanceof State) {
             return null;
         }
-        $city = $this->entityManager->getRepository(City::class)->findOneBy(['city' => $cityName, 'state' => $state]);
+
+        $city = $this->entityManager->getRepository(City::class)->findOneBy([
+            'city' => $cityName,
+            'state' => $state,
+        ]);
+
         if (!$city instanceof City && ($data['cityCode'] ?? '') !== '') {
-            $city = $this->entityManager->getRepository(City::class)->findOneBy(['cod_ibge' => (int) $data['cityCode']]);
+            $city = $this->entityManager->getRepository(City::class)->findOneBy([
+                'cod_ibge' => (int) $data['cityCode'],
+            ]);
         }
+
         if (!$city instanceof City) {
             $city = new City();
             $city->setCity($cityName);
@@ -341,7 +388,12 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
             $this->entityManager->persist($city);
             $this->entityManager->flush();
         }
-        $district = $this->entityManager->getRepository(District::class)->findOneBy(['district' => $districtName, 'city' => $city]);
+
+        $district = $this->entityManager->getRepository(District::class)->findOneBy([
+            'district' => $districtName,
+            'city' => $city,
+        ]);
+
         if (!$district instanceof District) {
             $district = new District();
             $district->setDistrict($districtName);
@@ -349,6 +401,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
             $this->entityManager->persist($district);
             $this->entityManager->flush();
         }
+
         $cep = $this->entityManager->getRepository(Cep::class)->findOneBy(['cep' => (int) $postalCode]);
         if (!$cep instanceof Cep) {
             $cep = new Cep();
@@ -356,7 +409,12 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
             $this->entityManager->persist($cep);
             $this->entityManager->flush();
         }
-        $street = $this->entityManager->getRepository(Street::class)->findOneBy(['street' => $streetName, 'district' => $district]);
+
+        $street = $this->entityManager->getRepository(Street::class)->findOneBy([
+            'street' => $streetName,
+            'district' => $district,
+        ]);
+
         if (!$street instanceof Street) {
             $street = new Street();
             $street->setStreet($streetName);
@@ -366,6 +424,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
             $this->entityManager->persist($street);
             $this->entityManager->flush();
         }
+
         $number = $this->normalizeAddressNumber($data['number'] ?? '');
         $complement = trim((string) ($data['complement'] ?? ''));
         $address = $this->entityManager->getRepository(Address::class)->findOneBy([
@@ -374,9 +433,11 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
             'number' => $number,
             'complement' => $complement,
         ]);
+
         if ($address instanceof Address) {
             return $address;
         }
+
         $address = new Address();
         $address->setPeople($people);
         $address->setStreet($street);
@@ -390,6 +451,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $address->setClosingTime(null);
         $address->setSearchFor('');
         $this->entityManager->persist($address);
+
         return $address;
     }
 
@@ -398,17 +460,21 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         if (!$people instanceof People || $company === $people) {
             return;
         }
+
         if ($people->getId() === null) {
             $this->entityManager->flush();
         }
+
         $link = $this->entityManager->getRepository(PeopleLink::class)->findOneBy([
             'company' => $company,
             'people' => $people,
             'linkType' => $linkType,
         ]);
+
         if ($link instanceof PeopleLink) {
             return;
         }
+
         $link = new PeopleLink();
         $link->setCompany($company);
         $link->setPeople($people);
@@ -422,10 +488,12 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         if (!$party instanceof SimpleXMLElement) {
             return null;
         }
+
         $document = $this->text($this->child($party, 'CNPJ')) ?: $this->text($this->child($party, 'CPF'));
         if ($document === '') {
             return null;
         }
+
         return [
             'document' => $this->digits($document),
             'name' => $this->text($this->child($party, 'xNome')),
@@ -437,13 +505,16 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
     private function parseCarrier(SimpleXMLElement $infNFe): ?array
     {
         $carrier = $this->child($this->child($infNFe, 'transp'), 'transporta');
+
         if (!$carrier instanceof SimpleXMLElement) {
             return null;
         }
+
         $document = $this->text($this->child($carrier, 'CNPJ')) ?: $this->text($this->child($carrier, 'CPF'));
         if ($document === '') {
             return null;
         }
+
         return [
             'document' => $this->digits($document),
             'name' => $this->text($this->child($carrier, 'xNome')),
@@ -468,6 +539,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         if (!$address instanceof SimpleXMLElement) {
             return [];
         }
+
         return [
             'street' => $this->text($this->child($address, 'xLgr')),
             'number' => $this->text($this->child($address, 'nro')),
@@ -487,11 +559,13 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         if (!$node instanceof SimpleXMLElement) {
             return null;
         }
+
         foreach ($node->children() as $child) {
             if ($child->getName() === $name) {
                 return $child;
             }
         }
+
         foreach ($node->getNamespaces(true) as $namespace) {
             foreach ($node->children($namespace) as $child) {
                 if ($child->getName() === $name) {
@@ -499,12 +573,14 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
                 }
             }
         }
+
         return null;
     }
 
     private function firstXPath(SimpleXMLElement $xml, string $path): ?SimpleXMLElement
     {
         $nodes = $xml->xpath($path);
+
         return is_array($nodes) && $nodes !== [] && $nodes[0] instanceof SimpleXMLElement ? $nodes[0] : null;
     }
 
@@ -531,6 +607,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
     private function normalizeAddressNumber(mixed $number): int
     {
         $digits = $this->digits($number);
+
         return $digits === '' ? 0 : (int) $digits;
     }
 }
