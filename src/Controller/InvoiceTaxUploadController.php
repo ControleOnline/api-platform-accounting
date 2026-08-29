@@ -3,7 +3,6 @@
 namespace ControleOnline\Controller;
 
 use ControleOnline\Entity\Import;
-use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Service\FileService;
 use ControleOnline\Service\Imports\InvoiceTaxImportProcessor;
 use ControleOnline\Service\ImportService;
@@ -52,7 +51,6 @@ class InvoiceTaxUploadController extends AbstractController
         $importedInvoices = [];
         $createdImports = [];
         $errors = [];
-        $statusOpen = $this->statusService->discoveryStatus('open', 'open', 'invoice_tax');
         $importStatusOpen = $this->statusService->discoveryStatus('open', 'open', 'integration');
 
         foreach ($uploadedFiles as $uploadedFile) {
@@ -61,25 +59,23 @@ class InvoiceTaxUploadController extends AbstractController
 
             if ($extension === 'xml') {
                 try {
-                    $fileEntity = $this->fileService->addUploadedFile($uploadedFile, $people, 'invoice_tax');
-                    $xmlContent = $fileEntity->getContent(true);
-                    $parsed = $this->importProcessor->parseNfeXml($xmlContent);
+                    $xmlContent = file_get_contents($uploadedFile->getPathname());
+                    if ($xmlContent === false) {
+                        throw new BadRequestHttpException('Nao foi possivel ler o arquivo XML enviado.');
+                    }
 
-                    $invoiceTax = new InvoiceTax();
-                    $invoiceTax->setFile($fileEntity);
-                    $invoiceTax->setInvoiceKey($parsed['key'] ?? '');
-                    $invoiceTax->setInvoiceNumber((int) ($parsed['number'] ?? 0));
-                    $invoiceTax->setStatus($statusOpen);
+                    $invoiceTax = $this->importProcessor->importXmlContent($people, $originalName, $xmlContent);
 
-                    $this->entityManager->persist($invoiceTax);
-                    $this->entityManager->flush();
+                    if (!$invoiceTax) {
+                        throw new BadRequestHttpException('XML de NF-e invalido ou sem chave/numero.');
+                    }
 
                     $importedInvoices[] = [
                         'id' => $invoiceTax->getId(),
                         'fileName' => $originalName,
                         'invoiceKey' => $invoiceTax->getInvoiceKey(),
                         'invoiceNumber' => $invoiceTax->getInvoiceNumber(),
-                        'status' => $statusOpen->getStatus(),
+                        'status' => $invoiceTax->getStatus()?->getStatus(),
                     ];
                 } catch (\Throwable $e) {
                     $errors[] = [

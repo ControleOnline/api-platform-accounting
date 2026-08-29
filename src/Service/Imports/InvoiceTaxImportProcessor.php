@@ -256,6 +256,9 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $invoiceTax->setIssuer($provider);
         $invoiceTax->setClient($client);
         $invoiceTax->setCarrier($carrier);
+        $invoiceTax->setProviderAddress($providerAddress);
+        $invoiceTax->setClientAddress($clientAddress);
+        $invoiceTax->setCarrierAddress($carrierAddress);
         $invoiceTax->setAddress($clientAddress ?? $providerAddress ?? $carrierAddress);
 
         $this->entityManager->persist($invoiceTax);
@@ -519,7 +522,32 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
     {
         $carrier = $this->child($this->child($infNFe, 'transp'), 'transporta');
 
-        return $this->parseParty($carrier, 'enderTransp');
+        if (!$carrier instanceof SimpleXMLElement) {
+            return null;
+        }
+
+        $document = $this->text($this->child($carrier, 'CNPJ')) ?: $this->text($this->child($carrier, 'CPF'));
+        if ($document === '') {
+            return null;
+        }
+
+        return [
+            'document' => $this->digits($document),
+            'name' => $this->text($this->child($carrier, 'xNome')),
+            'stateRegistration' => $this->text($this->child($carrier, 'IE')),
+            'address' => [
+                'street' => $this->text($this->child($carrier, 'xEnder')),
+                'number' => '0',
+                'complement' => '',
+                'district' => '',
+                'cityCode' => '',
+                'city' => $this->text($this->child($carrier, 'xMun')),
+                'state' => $this->text($this->child($carrier, 'UF')),
+                'postalCode' => '',
+                'countryCode' => '',
+                'country' => '',
+            ],
+        ];
     }
 
     /**
