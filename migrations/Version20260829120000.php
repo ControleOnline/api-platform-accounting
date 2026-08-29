@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 namespace DoctrineMigrations\Accounting;
@@ -16,18 +15,83 @@ final class Version20260829120000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE `invoice_tax` ADD COLUMN IF NOT EXISTS `invoice_model` int(11) DEFAULT NULL');
-        $this->addSql('ALTER TABLE `invoice_tax` ADD COLUMN IF NOT EXISTS `invoice_total` decimal(12,2) DEFAULT NULL');
-        $this->addSql('ALTER TABLE `invoice_tax` ADD COLUMN IF NOT EXISTS `cte_id` int(11) DEFAULT NULL');
-        $this->addSql('ALTER TABLE `invoice_tax` ADD COLUMN IF NOT EXISTS `issuer_id` int(11) DEFAULT NULL');
-        $this->addSql('ALTER TABLE `invoice_tax` ADD COLUMN IF NOT EXISTS `address_id` int(11) DEFAULT NULL');
-        $this->addSql('CREATE INDEX IF NOT EXISTS `invoice_tax_cte_id` ON `invoice_tax` (`cte_id`)');
-        $this->addSql('CREATE INDEX IF NOT EXISTS `invoice_tax_issuer_id` ON `invoice_tax` (`issuer_id`)');
-        $this->addSql('CREATE INDEX IF NOT EXISTS `invoice_tax_address_id` ON `invoice_tax` (`address_id`)');
+        if (!$this->tableExists('invoice_tax')) {
+            return;
+        }
+
+        // columns
+        if (!$this->columnExists('invoice_tax', 'invoice_model')) {
+            $this->addSql('ALTER TABLE `invoice_tax` ADD `invoice_model` int(11) DEFAULT NULL');
+        }
+        if (!$this->columnExists('invoice_tax', 'invoice_total')) {
+            $this->addSql('ALTER TABLE `invoice_tax` ADD `invoice_total` decimal(12,2) DEFAULT NULL');
+        }
+        if (!$this->columnExists('invoice_tax', 'cte_id')) {
+            $this->addSql('ALTER TABLE `invoice_tax` ADD `cte_id` int(11) DEFAULT NULL');
+            $this->addSql('CREATE INDEX `invoice_tax_cte_id` ON `invoice_tax` (`cte_id`)');
+        }
+        if (!$this->columnExists('invoice_tax', 'issuer_id')) {
+            $this->addSql('ALTER TABLE `invoice_tax` ADD `issuer_id` int(11) DEFAULT NULL');
+            $this->addSql('CREATE INDEX `invoice_tax_issuer_id` ON `invoice_tax` (`issuer_id`)');
+        }
+        if (!$this->columnExists('invoice_tax', 'address_id')) {
+            $this->addSql('ALTER TABLE `invoice_tax` ADD `address_id` int(11) DEFAULT NULL');
+            $this->addSql('CREATE INDEX `invoice_tax_address_id` ON `invoice_tax` (`address_id`)');
+        }
     }
 
     public function down(Schema $schema): void
     {
-        return;
+        if ($this->tableExists('invoice_tax')) {
+            if ($this->indexExists('invoice_tax', 'invoice_tax_cte_id')) {
+                $this->addSql('DROP INDEX `invoice_tax_cte_id` ON `invoice_tax`');
+            }
+            if ($this->indexExists('invoice_tax', 'invoice_tax_issuer_id')) {
+                $this->addSql('DROP INDEX `invoice_tax_issuer_id` ON `invoice_tax`');
+            }
+            if ($this->indexExists('invoice_tax', 'invoice_tax_address_id')) {
+                $this->addSql('DROP INDEX `invoice_tax_address_id` ON `invoice_tax`');
+            }
+
+            if ($this->columnExists('invoice_tax', 'invoice_model')) {
+                $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `invoice_model`');
+            }
+            if ($this->columnExists('invoice_tax', 'invoice_total')) {
+                $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `invoice_total`');
+            }
+            if ($this->columnExists('invoice_tax', 'cte_id')) {
+                $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `cte_id`');
+            }
+            if ($this->columnExists('invoice_tax', 'issuer_id')) {
+                $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `issuer_id`');
+            }
+            if ($this->columnExists('invoice_tax', 'address_id')) {
+                $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `address_id`');
+            }
+        }
+    }
+
+    private function tableExists(string $tableName): bool
+    {
+        return (bool) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?',
+            [$tableName]
+        );
+    }
+
+    private function columnExists(string $tableName, string $columnName): bool
+    {
+        return (bool) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?',
+            [$tableName, $columnName]
+        );
+    }
+
+    private function indexExists(string $tableName, string $indexName): bool
+    {
+        return (bool) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?',
+            [$tableName, $indexName]
+        );
     }
 }
