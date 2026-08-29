@@ -96,6 +96,11 @@ class InvoiceTax
     #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
     private $cte;
 
+    #[ORM\JoinColumn(name: 'invoice_task_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: InvoiceTask::class)]
+    #[Groups(['invoice_tax:read'])]
+    private $invoiceTask;
+
     #[ORM\JoinColumn(name: 'issuer_id', referencedColumnName: 'id', nullable: true)]
     #[ORM\ManyToOne(targetEntity: People::class)]
     #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
@@ -262,6 +267,17 @@ class InvoiceTax
     public function getCte(): ?InvoiceTax
     {
         return $this->cte;
+    }
+
+    public function setInvoiceTask(?InvoiceTask $invoiceTask): self
+    {
+        $this->invoiceTask = $invoiceTask;
+        return $this;
+    }
+
+    public function getInvoiceTask(): ?InvoiceTask
+    {
+        return $this->invoiceTask;
     }
 
     public function setIssuer(?People $issuer)
