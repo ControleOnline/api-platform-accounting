@@ -72,10 +72,6 @@ class InvoiceTax
     #[ORM\OneToMany(targetEntity: OrderInvoiceTax::class, mappedBy: 'invoiceTax')]
     private $order;
 
-    #[ORM\Column(name: 'invoice', type: 'text', nullable: true)]
-    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
-    private ?string $invoice = null;
-
     #[ORM\OneToMany(targetEntity: ServiceInvoiceTax::class, mappedBy: 'service_invoice_tax')]
     private $service_invoice_tax;
 
@@ -99,6 +95,11 @@ class InvoiceTax
     #[ORM\ManyToOne(targetEntity: InvoiceTax::class)]
     #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
     private $cte;
+
+    #[ORM\JoinColumn(name: 'invoice_task_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: InvoiceTask::class)]
+    #[Groups(['invoice_tax:read'])]
+    private $invoiceTask;
 
     #[ORM\JoinColumn(name: 'issuer_id', referencedColumnName: 'id', nullable: true)]
     #[ORM\ManyToOne(targetEntity: People::class)]
@@ -194,21 +195,23 @@ class InvoiceTax
         return $this;
     }
 
-    public function setInvoice($invoice)
-    {
-        $this->invoice = $invoice;
-        return $this;
-    }
-
+    #[Groups(['invoice_tax:read'])]
     public function getInvoice()
     {
-        if ($this->file !== null) {
-            try {
-                return $this->file->getContent(true);
-            } catch (\Throwable $e) {
-            }
+        if ($this->file === null) {
+            return null;
         }
-        return $this->invoice;
+
+        try {
+            return $this->file->getContent(true);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    public function setInvoice($invoice)
+    {
+        return $this;
     }
 
     public function setInvoiceKey($invoice_key)
@@ -264,6 +267,17 @@ class InvoiceTax
     public function getCte(): ?InvoiceTax
     {
         return $this->cte;
+    }
+
+    public function setInvoiceTask(?InvoiceTask $invoiceTask): self
+    {
+        $this->invoiceTask = $invoiceTask;
+        return $this;
+    }
+
+    public function getInvoiceTask(): ?InvoiceTask
+    {
+        return $this->invoiceTask;
     }
 
     public function setIssuer(?People $issuer)
