@@ -10,67 +10,14 @@ final class Version20260829180000 extends AbstractMigration
 {
     public function getDescription(): string
     {
-        return 'Add invoice_tax.file_id and invoice_tax.status_id used by InvoiceTax mapping';
+        return 'No-op. invoice_tax.file_id/status_id moved to Version20260829214000';
     }
 
     public function up(Schema $schema): void
     {
-        if (!$this->tableExists('invoice_tax')) {
-            return;
-        }
-
-        if (!$this->columnExists('invoice_tax', 'file_id')) {
-            $this->addSql('ALTER TABLE `invoice_tax` ADD `file_id` int(11) DEFAULT NULL');
-            $this->addSql('CREATE INDEX `invoice_tax_file_id` ON `invoice_tax` (`file_id`)');
-        }
-
-        if (!$this->columnExists('invoice_tax', 'status_id')) {
-            $this->addSql('ALTER TABLE `invoice_tax` ADD `status_id` int(11) DEFAULT NULL');
-            $this->addSql('CREATE INDEX `invoice_tax_status_id` ON `invoice_tax` (`status_id`)');
-        }
     }
 
     public function down(Schema $schema): void
     {
-        if (!$this->tableExists('invoice_tax')) {
-            return;
-        }
-
-        if ($this->indexExists('invoice_tax', 'invoice_tax_file_id')) {
-            $this->addSql('DROP INDEX `invoice_tax_file_id` ON `invoice_tax`');
-        }
-        if ($this->columnExists('invoice_tax', 'file_id')) {
-            $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `file_id`');
-        }
-        if ($this->indexExists('invoice_tax', 'invoice_tax_status_id')) {
-            $this->addSql('DROP INDEX `invoice_tax_status_id` ON `invoice_tax`');
-        }
-        if ($this->columnExists('invoice_tax', 'status_id')) {
-            $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `status_id`');
-        }
-    }
-
-    private function tableExists(string $tableName): bool
-    {
-        return (bool) $this->connection->fetchOne(
-            'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?',
-            [$tableName]
-        );
-    }
-
-    private function columnExists(string $tableName, string $columnName): bool
-    {
-        return (bool) $this->connection->fetchOne(
-            'SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?',
-            [$tableName, $columnName]
-        );
-    }
-
-    private function indexExists(string $tableName, string $indexName): bool
-    {
-        return (bool) $this->connection->fetchOne(
-            'SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?',
-            [$tableName, $indexName]
-        );
     }
 }
