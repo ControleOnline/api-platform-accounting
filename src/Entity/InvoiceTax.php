@@ -2,26 +2,31 @@
 
 namespace ControleOnline\Entity;
 
-use Symfony\Component\Serializer\Attribute\Groups;
-
-use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
-use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\GetCollection;
 use ControleOnline\Controller\DownloadOrderNFAction;
-
+use ControleOnline\Controller\ListInvoicesWithoutCteAction;
 use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 
 #[ApiResource(
     operations: [
         new Get(security: 'is_granted(\'ROLE_HUMAN\')'),
+        new GetCollection(security: 'is_granted(\'ROLE_HUMAN\')'),
         new Get(
             security: 'is_granted(\'PUBLIC_ACCESS\')',
             uriTemplate: '/invoice_taxes/{id}/download-nf',
             requirements: ['id' => '[\\w-]+'],
             controller: DownloadOrderNFAction::class
+        ),
+        new GetCollection(
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            uriTemplate: '/invoice_taxes/without-cte',
+            controller: ListInvoicesWithoutCteAction::class,
+            read: false,
+            output: false
         ),
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
@@ -29,7 +34,6 @@ use Doctrine\ORM\Mapping as ORM;
     denormalizationContext: ['groups' => ['invoice_tax:write']]
 )]
 #[ORM\Table(name: 'invoice_tax')]
-
 #[ORM\Entity]
 class InvoiceTax
 {
@@ -56,6 +60,29 @@ class InvoiceTax
     #[ORM\Column(name: 'invoice_number', type: 'integer', nullable: false)]
     #[Groups(['invoice_tax:read', 'order:read'])]
     private $invoiceNumber;
+
+    #[ORM\Column(name: 'invoice_model', type: 'integer', nullable: true)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $invoiceModel;
+
+    #[ORM\Column(name: 'invoice_total', type: 'decimal', precision: 12, scale: 2, nullable: true)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $invoiceTotal;
+
+    #[ORM\JoinColumn(name: 'cte_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: InvoiceTax::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $cte;
+
+    #[ORM\JoinColumn(name: 'issuer_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $issuer;
+
+    #[ORM\JoinColumn(name: 'address_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $address;
 
     public function __construct()
     {
@@ -115,6 +142,61 @@ class InvoiceTax
     public function getInvoiceNumber()
     {
         return $this->invoiceNumber;
+    }
+
+    public function setInvoiceModel($invoiceModel)
+    {
+        $this->invoiceModel = $invoiceModel === null ? null : (int) $invoiceModel;
+        return $this;
+    }
+
+    public function getInvoiceModel()
+    {
+        return $this->invoiceModel;
+    }
+
+    public function setInvoiceTotal($invoiceTotal)
+    {
+        $this->invoiceTotal = $invoiceTotal;
+        return $this;
+    }
+
+    public function getInvoiceTotal()
+    {
+        return $this->invoiceTotal;
+    }
+
+    public function setCte(?InvoiceTax $cte)
+    {
+        $this->cte = $cte;
+        return $this;
+    }
+
+    public function getCte(): ?InvoiceTax
+    {
+        return $this->cte;
+    }
+
+    public function setIssuer(?People $issuer)
+    {
+        $this->issuer = $issuer;
+        return $this;
+    }
+
+    public function getIssuer(): ?People
+    {
+        return $this->issuer;
+    }
+
+    public function setAddress(?Address $address)
+    {
+        $this->address = $address;
+        return $this;
+    }
+
+    public function getAddress(): ?Address
+    {
+        return $this->address;
     }
 
     public function addServiceInvoiceTax(ServiceInvoiceTax $service_invoice_tax)
