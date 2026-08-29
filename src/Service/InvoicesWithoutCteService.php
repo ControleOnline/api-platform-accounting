@@ -16,7 +16,7 @@ class InvoicesWithoutCteService
     {
     }
 
-    public function list(?int $issuerId = null): array
+    public function list(?int $issuerId = null, array $ids = []): array
     {
         $qb = $this->entityManager->createQueryBuilder()
             ->select('invoiceTax')
@@ -36,6 +36,9 @@ class InvoicesWithoutCteService
         if ($issuerId) {
             $qb->andWhere('issuer.id = :issuerId')->setParameter('issuerId', $issuerId);
         }
+        if ($ids) {
+            $qb->andWhere('invoiceTax.id IN (:ids)')->setParameter('ids', $ids);
+        }
 
         $invoices = $qb->getQuery()->getResult();
         $busyIds = $this->busyInvoiceIds();
@@ -50,6 +53,11 @@ class InvoicesWithoutCteService
             static fn(float $carry, array $item): float => $carry + (float) ($item['invoiceTotal'] ?? 0),
             0.0
         );
+        $totalWeight = array_reduce(
+            $items,
+            static fn(float $carry, array $item): float => $carry + (float) ($item['weight'] ?? 0),
+            0.0
+        );
 
         return [
             'member' => $items,
@@ -57,6 +65,16 @@ class InvoicesWithoutCteService
             'groups' => $groups,
             'totalItems' => count($items),
             'totalValue' => round($totalValue, 2),
+            'totalWeight' => round($totalWeight, 3),
+            'summary' => [
+                'sum' => [
+                    'invoiceTotal' => round($totalValue, 2),
+                    'weight' => round($totalWeight, 3),
+                ],
+                'count' => [
+                    'invoices' => count($items),
+                ],
+            ],
         ];
     }
 
@@ -75,11 +93,13 @@ class InvoicesWithoutCteService
                     'invoices' => [],
                     'invoiceCount' => 0,
                     'totalValue' => 0.0,
+                    'totalWeight' => 0.0,
                 ];
             }
             $groups[$key]['invoices'][] = $item;
             $groups[$key]['invoiceCount']++;
             $groups[$key]['totalValue'] = round($groups[$key]['totalValue'] + (float) ($item['invoiceTotal'] ?? 0), 2);
+            $groups[$key]['totalWeight'] = round($groups[$key]['totalWeight'] + (float) ($item['weight'] ?? 0), 3);
         }
         return array_values($groups);
     }
@@ -96,6 +116,12 @@ class InvoicesWithoutCteService
         $client = $invoice->getClient();
         $provider = $invoice->getProvider();
         $carrier = $invoice->getCarrier();
+        $xml = null;
+        try {
+            $xml = $invoice->getInvoice();
+        } catch (\Throwable) {
+            $xml = null;
+        }
 
         return [
             '@id' => '/invoice_taxes/' . $invoice->getId(),
@@ -104,6 +130,7 @@ class InvoicesWithoutCteService
             'invoiceKey' => $invoice->getInvoiceKey(),
             'invoiceModel' => $invoice->getInvoiceModel(),
             'invoiceTotal' => $invoice->getInvoiceTotal() === null ? 0 : (float) $invoice->getInvoiceTotal(),
+            'weight' => $this->extractWeight(is_string($xml) ? $xml : null),
             'cteId' => $invoice->getCte()?->getId(),
             'companyId' => $this->peopleId($company),
             'companyName' => $this->peopleName($company, 'Empresa não informada'),
@@ -121,6 +148,22 @@ class InvoicesWithoutCteService
             'clientAddressLabel' => $this->formatAddress($invoice->getClientAddress()),
             'carrierAddressLabel' => $this->formatAddress($invoice->getCarrierAddress()),
         ];
+    }
+
+    private function extractWeight(?string $xml): float
+    {
+        if (!$xml) {
+            return 0.0;
+        }
+
+        $total = 0.0;
+        if (preg_match_all('/<(?:pesoB|pesoL)>([^<]+)<\/(?:pesoB|pesoL)>/i', $xml, $matches)) {
+            foreach ($matches[1] as $value) {
+                $total += (float) str_replace(',', '.', trim((string) $value));
+            }
+        }
+
+        return round($total, 3);
     }
 
     private function peopleId(?People $people): ?int
