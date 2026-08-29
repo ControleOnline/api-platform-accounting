@@ -108,6 +108,26 @@ class InvoiceTax
     #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
     private $address;
 
+    #[ORM\JoinColumn(name: 'company_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $company;
+
+    #[ORM\JoinColumn(name: 'client_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $client;
+
+    #[ORM\JoinColumn(name: 'provider_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $provider;
+
+    #[ORM\JoinColumn(name: 'carrier_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $carrier;
+
     public function __construct()
     {
         $this->order = new ArrayCollection();
@@ -250,6 +270,50 @@ class InvoiceTax
     public function getAddress(): ?Address
     {
         return $this->address;
+    }
+
+    public function setCompany(?People $company)
+    {
+        $this->company = $company;
+        return $this;
+    }
+
+    public function getCompany(): ?People
+    {
+        return $this->company;
+    }
+
+    public function setClient(?People $client)
+    {
+        $this->client = $client;
+        return $this;
+    }
+
+    public function getClient(): ?People
+    {
+        return $this->client;
+    }
+
+    public function setProvider(?People $provider)
+    {
+        $this->provider = $provider;
+        return $this;
+    }
+
+    public function getProvider(): ?People
+    {
+        return $this->provider;
+    }
+
+    public function setCarrier(?People $carrier)
+    {
+        $this->carrier = $carrier;
+        return $this;
+    }
+
+    public function getCarrier(): ?People
+    {
+        return $this->carrier;
     }
 
     public function addServiceInvoiceTax(ServiceInvoiceTax $service_invoice_tax)

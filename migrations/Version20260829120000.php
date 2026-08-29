@@ -38,6 +38,22 @@ final class Version20260829120000 extends AbstractMigration
             $this->addSql('ALTER TABLE `invoice_tax` ADD `address_id` int(11) DEFAULT NULL');
             $this->addSql('CREATE INDEX `invoice_tax_address_id` ON `invoice_tax` (`address_id`)');
         }
+        if (!$this->columnExists('invoice_tax', 'company_id')) {
+            $this->addSql('ALTER TABLE `invoice_tax` ADD `company_id` int(11) DEFAULT NULL');
+            $this->addSql('CREATE INDEX `invoice_tax_company_id` ON `invoice_tax` (`company_id`)');
+        }
+        if (!$this->columnExists('invoice_tax', 'client_id')) {
+            $this->addSql('ALTER TABLE `invoice_tax` ADD `client_id` int(11) DEFAULT NULL');
+            $this->addSql('CREATE INDEX `invoice_tax_client_id` ON `invoice_tax` (`client_id`)');
+        }
+        if (!$this->columnExists('invoice_tax', 'provider_id')) {
+            $this->addSql('ALTER TABLE `invoice_tax` ADD `provider_id` int(11) DEFAULT NULL');
+            $this->addSql('CREATE INDEX `invoice_tax_provider_id` ON `invoice_tax` (`provider_id`)');
+        }
+        if (!$this->columnExists('invoice_tax', 'carrier_id')) {
+            $this->addSql('ALTER TABLE `invoice_tax` ADD `carrier_id` int(11) DEFAULT NULL');
+            $this->addSql('CREATE INDEX `invoice_tax_carrier_id` ON `invoice_tax` (`carrier_id`)');
+        }
     }
 
     public function down(Schema $schema): void
@@ -51,6 +67,18 @@ final class Version20260829120000 extends AbstractMigration
             }
             if ($this->indexExists('invoice_tax', 'invoice_tax_address_id')) {
                 $this->addSql('DROP INDEX `invoice_tax_address_id` ON `invoice_tax`');
+            }
+            if ($this->indexExists('invoice_tax', 'invoice_tax_company_id')) {
+                $this->addSql('DROP INDEX `invoice_tax_company_id` ON `invoice_tax`');
+            }
+            if ($this->indexExists('invoice_tax', 'invoice_tax_client_id')) {
+                $this->addSql('DROP INDEX `invoice_tax_client_id` ON `invoice_tax`');
+            }
+            if ($this->indexExists('invoice_tax', 'invoice_tax_provider_id')) {
+                $this->addSql('DROP INDEX `invoice_tax_provider_id` ON `invoice_tax`');
+            }
+            if ($this->indexExists('invoice_tax', 'invoice_tax_carrier_id')) {
+                $this->addSql('DROP INDEX `invoice_tax_carrier_id` ON `invoice_tax`');
             }
 
             if ($this->columnExists('invoice_tax', 'invoice_model')) {
@@ -67,6 +95,18 @@ final class Version20260829120000 extends AbstractMigration
             }
             if ($this->columnExists('invoice_tax', 'address_id')) {
                 $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `address_id`');
+            }
+            if ($this->columnExists('invoice_tax', 'company_id')) {
+                $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `company_id`');
+            }
+            if ($this->columnExists('invoice_tax', 'client_id')) {
+                $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `client_id`');
+            }
+            if ($this->columnExists('invoice_tax', 'provider_id')) {
+                $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `provider_id`');
+            }
+            if ($this->columnExists('invoice_tax', 'carrier_id')) {
+                $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `carrier_id`');
             }
         }
     }
