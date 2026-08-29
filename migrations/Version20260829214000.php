@@ -23,14 +23,14 @@ final class Version20260829214000 extends AbstractMigration
         if (!$this->columnExists('invoice_tax', 'file_id')) {
             $this->addSql('ALTER TABLE `invoice_tax` ADD `file_id` INT DEFAULT NULL');
         }
-        if (!$this->indexExists('invoice_tax', 'invoice_tax_file_id') && $this->columnExists('invoice_tax', 'file_id')) {
+        if (!$this->indexExists('invoice_tax', 'invoice_tax_file_id')) {
             $this->addSql('CREATE INDEX `invoice_tax_file_id` ON `invoice_tax` (`file_id`)');
         }
 
         if (!$this->columnExists('invoice_tax', 'status_id')) {
             $this->addSql('ALTER TABLE `invoice_tax` ADD `status_id` INT DEFAULT NULL');
         }
-        if (!$this->indexExists('invoice_tax', 'invoice_tax_status_id') && $this->columnExists('invoice_tax', 'status_id')) {
+        if (!$this->indexExists('invoice_tax', 'invoice_tax_status_id')) {
             $this->addSql('CREATE INDEX `invoice_tax_status_id` ON `invoice_tax` (`status_id`)');
         }
     }
@@ -41,17 +41,17 @@ final class Version20260829214000 extends AbstractMigration
             return;
         }
 
-        if ($this->indexExists('invoice_tax', 'invoice_tax_file_id')) {
-            $this->addSql('DROP INDEX `invoice_tax_file_id` ON `invoice_tax`');
-        }
-        if ($this->columnExists('invoice_tax', 'file_id')) {
-            $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `file_id`');
-        }
         if ($this->indexExists('invoice_tax', 'invoice_tax_status_id')) {
             $this->addSql('DROP INDEX `invoice_tax_status_id` ON `invoice_tax`');
         }
         if ($this->columnExists('invoice_tax', 'status_id')) {
             $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `status_id`');
+        }
+        if ($this->indexExists('invoice_tax', 'invoice_tax_file_id')) {
+            $this->addSql('DROP INDEX `invoice_tax_file_id` ON `invoice_tax`');
+        }
+        if ($this->columnExists('invoice_tax', 'file_id')) {
+            $this->addSql('ALTER TABLE `invoice_tax` DROP COLUMN `file_id`');
         }
     }
 
