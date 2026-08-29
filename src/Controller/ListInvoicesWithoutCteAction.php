@@ -15,9 +15,13 @@ class ListInvoicesWithoutCteAction
     public function __invoke(Request $request): JsonResponse
     {
         $issuer = preg_replace('/\D+/', '', (string) $request->query->get('issuer', ''));
+        $ids = $this->readIds($request);
 
         try {
-            return new JsonResponse($this->invoicesWithoutCteService->list($issuer ? (int) $issuer : null));
+            return new JsonResponse($this->invoicesWithoutCteService->list(
+                $issuer ? (int) $issuer : null,
+                $ids
+            ));
         } catch (\Throwable $exception) {
             return new JsonResponse([
                 'member' => [],
@@ -25,8 +29,25 @@ class ListInvoicesWithoutCteAction
                 'groups' => [],
                 'totalItems' => 0,
                 'totalValue' => 0,
+                'totalWeight' => 0,
                 'error' => $exception->getMessage(),
             ], 500);
         }
+    }
+
+    private function readIds(Request $request): array
+    {
+        $raw = $request->query->all('id');
+        if (!$raw) {
+            $raw = $request->query->all('id[]');
+        }
+        if (!$raw) {
+            $raw = preg_split('/[\s,]+/', (string) $request->query->get('ids', '')) ?: [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn($value) => (int) preg_replace('/\D+/', '', (string) $value),
+            is_array($raw) ? $raw : [$raw]
+        ))));
     }
 }
