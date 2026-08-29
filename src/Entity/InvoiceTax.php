@@ -2,26 +2,45 @@
 
 namespace ControleOnline\Entity;
 
-use Symfony\Component\Serializer\Attribute\Groups;
-
 use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Post;
 use ControleOnline\Controller\DownloadOrderNFAction;
-
+use ControleOnline\Controller\InvoiceTaxUploadController;
+use ControleOnline\Controller\ListInvoicesWithoutCteAction;
+use ControleOnline\Entity\Address;
+use ControleOnline\Entity\File;
+use ControleOnline\Entity\People;
+use ControleOnline\Entity\Status;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Attribute\Groups;
 
 #[ApiResource(
     operations: [
         new Get(security: 'is_granted(\'ROLE_HUMAN\')'),
+        new GetCollection(security: 'is_granted(\'ROLE_HUMAN\')'),
+        new Post(
+            uriTemplate: '/invoice_taxes/upload',
+            controller: InvoiceTaxUploadController::class,
+            deserialize: false,
+            security: 'is_granted(\'ROLE_HUMAN\')'
+        ),
         new Get(
             security: 'is_granted(\'PUBLIC_ACCESS\')',
             uriTemplate: '/invoice_taxes/{id}/download-nf',
             requirements: ['id' => '[\\w-]+'],
             controller: DownloadOrderNFAction::class
+        ),
+        new GetCollection(
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            uriTemplate: '/invoice_taxes/without-cte',
+            controller: ListInvoicesWithoutCteAction::class,
+            read: false,
+            output: false
         ),
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
@@ -29,7 +48,6 @@ use Doctrine\ORM\Mapping as ORM;
     denormalizationContext: ['groups' => ['invoice_tax:write']]
 )]
 #[ORM\Table(name: 'invoice_tax')]
-
 #[ORM\Entity]
 class InvoiceTax
 {
@@ -39,12 +57,22 @@ class InvoiceTax
     #[Groups(['invoice_tax:read'])]
     private $id;
 
+    #[ORM\ManyToOne(targetEntity: File::class)]
+    #[ORM\JoinColumn(name: 'file_id', referencedColumnName: 'id', nullable: true)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private ?File $file = null;
+
+    #[ORM\ManyToOne(targetEntity: Status::class)]
+    #[ORM\JoinColumn(name: 'status_id', referencedColumnName: 'id', nullable: true)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private ?Status $status = null;
+
     #[ORM\OneToMany(targetEntity: OrderInvoiceTax::class, mappedBy: 'invoiceTax')]
     private $order;
 
-    #[ORM\Column(name: 'invoice', type: 'string', nullable: false)]
+    #[ORM\Column(name: 'invoice', type: 'text', nullable: true)]
     #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
-    private $invoice;
+    private ?string $invoice = null;
 
     #[ORM\OneToMany(targetEntity: ServiceInvoiceTax::class, mappedBy: 'service_invoice_tax')]
     private $service_invoice_tax;
@@ -56,6 +84,64 @@ class InvoiceTax
     #[ORM\Column(name: 'invoice_number', type: 'integer', nullable: false)]
     #[Groups(['invoice_tax:read', 'order:read'])]
     private $invoiceNumber;
+
+    #[ORM\Column(name: 'invoice_model', type: 'integer', nullable: true)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $invoiceModel;
+
+    #[ORM\Column(name: 'invoice_total', type: 'decimal', precision: 12, scale: 2, nullable: true)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $invoiceTotal;
+
+    #[ORM\JoinColumn(name: 'cte_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: InvoiceTax::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $cte;
+
+    #[ORM\JoinColumn(name: 'issuer_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $issuer;
+
+    #[ORM\JoinColumn(name: 'address_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $address;
+
+    #[ORM\JoinColumn(name: 'company_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $company;
+
+    #[ORM\JoinColumn(name: 'client_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $client;
+
+    #[ORM\JoinColumn(name: 'provider_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $provider;
+
+    #[ORM\JoinColumn(name: 'carrier_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: People::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $carrier;
+
+    #[ORM\JoinColumn(name: 'provider_address_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $providerAddress;
+
+    #[ORM\JoinColumn(name: 'client_address_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $clientAddress;
+
+    #[ORM\JoinColumn(name: 'carrier_address_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $carrierAddress;
 
     public function __construct()
     {
@@ -84,6 +170,28 @@ class InvoiceTax
         return $this->order;
     }
 
+    public function getFile(): ?File
+    {
+        return $this->file;
+    }
+
+    public function setFile(?File $file): self
+    {
+        $this->file = $file;
+        return $this;
+    }
+
+    public function getStatus(): ?Status
+    {
+        return $this->status;
+    }
+
+    public function setStatus(?Status $status): self
+    {
+        $this->status = $status;
+        return $this;
+    }
+
     public function setInvoice($invoice)
     {
         $this->invoice = $invoice;
@@ -92,6 +200,13 @@ class InvoiceTax
 
     public function getInvoice()
     {
+        if ($this->file !== null) {
+            try {
+                return $this->file->getContent(true);
+            } catch (\Throwable $e) {
+                // fallback to invoice string
+            }
+        }
         return $this->invoice;
     }
 
@@ -115,6 +230,138 @@ class InvoiceTax
     public function getInvoiceNumber()
     {
         return $this->invoiceNumber;
+    }
+
+    public function setInvoiceModel($invoiceModel)
+    {
+        $this->invoiceModel = $invoiceModel === null ? null : (int) $invoiceModel;
+        return $this;
+    }
+
+    public function getInvoiceModel()
+    {
+        return $this->invoiceModel;
+    }
+
+    public function setInvoiceTotal($invoiceTotal)
+    {
+        $this->invoiceTotal = $invoiceTotal;
+        return $this;
+    }
+
+    public function getInvoiceTotal()
+    {
+        return $this->invoiceTotal;
+    }
+
+    public function setCte(?InvoiceTax $cte)
+    {
+        $this->cte = $cte;
+        return $this;
+    }
+
+    public function getCte(): ?InvoiceTax
+    {
+        return $this->cte;
+    }
+
+    public function setIssuer(?People $issuer)
+    {
+        $this->issuer = $issuer;
+        return $this;
+    }
+
+    public function getIssuer(): ?People
+    {
+        return $this->issuer;
+    }
+
+    public function setAddress(?Address $address)
+    {
+        $this->address = $address;
+        return $this;
+    }
+
+    public function getAddress(): ?Address
+    {
+        return $this->address;
+    }
+
+    public function setCompany(?People $company)
+    {
+        $this->company = $company;
+        return $this;
+    }
+
+    public function getCompany(): ?People
+    {
+        return $this->company;
+    }
+
+    public function setClient(?People $client)
+    {
+        $this->client = $client;
+        return $this;
+    }
+
+    public function getClient(): ?People
+    {
+        return $this->client;
+    }
+
+    public function setProvider(?People $provider)
+    {
+        $this->provider = $provider;
+        return $this;
+    }
+
+    public function getProvider(): ?People
+    {
+        return $this->provider;
+    }
+
+    public function setCarrier(?People $carrier)
+    {
+        $this->carrier = $carrier;
+        return $this;
+    }
+
+    public function getCarrier(): ?People
+    {
+        return $this->carrier;
+    }
+
+    public function setProviderAddress(?Address $providerAddress)
+    {
+        $this->providerAddress = $providerAddress;
+        return $this;
+    }
+
+    public function getProviderAddress(): ?Address
+    {
+        return $this->providerAddress;
+    }
+
+    public function setClientAddress(?Address $clientAddress)
+    {
+        $this->clientAddress = $clientAddress;
+        return $this;
+    }
+
+    public function getClientAddress(): ?Address
+    {
+        return $this->clientAddress;
+    }
+
+    public function setCarrierAddress(?Address $carrierAddress)
+    {
+        $this->carrierAddress = $carrierAddress;
+        return $this;
+    }
+
+    public function getCarrierAddress(): ?Address
+    {
+        return $this->carrierAddress;
     }
 
     public function addServiceInvoiceTax(ServiceInvoiceTax $service_invoice_tax)

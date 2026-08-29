@@ -1,0 +1,25 @@
+name: Deploy Project
+on:
+  push:
+    branches: [staging]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "18.17.1"
+      - name: Update Controle Online
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ${{ secrets.DEV_USER }}
+          password: ${{ secrets.DEV_PASS }}
+
+          script: |
+                  cd /var/www/api-community/modules/controleonline/accounting
+                  git reset --hard origin/staging
+                  git pull origin staging
+                  cd /var/www/api-community/
+                  php bin/console cache:clear
