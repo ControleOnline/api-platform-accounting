@@ -5,7 +5,6 @@ namespace ControleOnline\Service;
 use ControleOnline\Entity\Integration;
 use ControleOnline\Entity\InvoiceTask;
 use ControleOnline\Entity\InvoiceTax;
-use ControleOnline\Entity\Status;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
@@ -34,17 +33,13 @@ class EmitCteService
             throw new BadRequestHttpException('Uma ou mais NFs não foram encontradas.');
         }
 
-        foreach ($invoices as $invoice) {
-            $existing = $invoice->getInvoiceTask();
-            if ($existing instanceof InvoiceTask) {
-                $real = (string) ($existing->getStatus()?->getRealStatus() ?? '');
-                if (in_array($real, ['pending', 'processing', 'emitted', 'closed'], true)) {
-                    throw new BadRequestHttpException(sprintf(
-                        'NF %s já possui emissão em andamento ou concluída.',
-                        $invoice->getInvoiceNumber() ?: $invoice->getId()
-                    ));
-                }
-            }
+        $busy = $this->manager->getConnection()->fetchFirstColumn(
+            'SELECT id FROM invoice_tax WHERE id IN (?) AND invoice_task_id IS NOT NULL',
+            [$ids],
+            [\Doctrine\DBAL\Connection::PARAM_INT_ARRAY]
+        );
+        if ($busy) {
+            throw new BadRequestHttpException('Uma ou mais NFs já estão em emissão ou emitidas.');
         }
 
         $first = $invoices[0];
@@ -72,10 +67,11 @@ class EmitCteService
         $this->manager->persist($task);
         $this->manager->flush();
 
-        foreach ($invoices as $invoice) {
-            $invoice->setInvoiceTask($task);
-            $this->manager->persist($invoice);
-        }
+        $this->manager->getConnection()->executeStatement(
+            'UPDATE invoice_tax SET invoice_task_id = ? WHERE id IN (?) AND invoice_task_id IS NULL',
+            [$task->getId(), $ids],
+            [\PDO::PARAM_INT, \Doctrine\DBAL\Connection::PARAM_INT_ARRAY]
+        );
 
         $this->enqueue($task, $ids, $cfop, $extra);
         $this->manager->flush();
@@ -100,7 +96,7 @@ class EmitCteService
             'extra' => $extra,
         ], JSON_UNESCAPED_UNICODE));
         $user = $this->tokenStorage->getToken()?->getUser();
-        if (is_object($user) && method_exists($integration, 'setUser') && method_exists($user, 'getId')) {
+        if (is_object($user) && method_exists($integration, 'setUser')) {
             $integration->setUser($user);
         }
         $this->manager->persist($integration);
