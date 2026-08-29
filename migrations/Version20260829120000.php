@@ -1,15 +1,4 @@
 <?php
-
-declare(strict_types=1);
-
-namespace DoctrineMigrations\Accounting;
-
-use Doctrine\DBAL\Schema\Schema;
-use Doctrine\Migrations\AbstractMigration;
-
-final class Version20260829120000 extends AbstractMigration
-<?php
-
 declare(strict_types=1);
 
 namespace DoctrineMigrations\Accounting;
