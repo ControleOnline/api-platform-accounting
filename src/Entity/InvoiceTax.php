@@ -128,6 +128,21 @@ class InvoiceTax
     #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
     private $carrier;
 
+    #[ORM\JoinColumn(name: 'provider_address_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $providerAddress;
+
+    #[ORM\JoinColumn(name: 'client_address_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $clientAddress;
+
+    #[ORM\JoinColumn(name: 'carrier_address_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private $carrierAddress;
+
     public function __construct()
     {
         $this->order = new ArrayCollection();
@@ -314,6 +329,39 @@ class InvoiceTax
     public function getCarrier(): ?People
     {
         return $this->carrier;
+    }
+
+    public function setProviderAddress(?Address $providerAddress)
+    {
+        $this->providerAddress = $providerAddress;
+        return $this;
+    }
+
+    public function getProviderAddress(): ?Address
+    {
+        return $this->providerAddress;
+    }
+
+    public function setClientAddress(?Address $clientAddress)
+    {
+        $this->clientAddress = $clientAddress;
+        return $this;
+    }
+
+    public function getClientAddress(): ?Address
+    {
+        return $this->clientAddress;
+    }
+
+    public function setCarrierAddress(?Address $carrierAddress)
+    {
+        $this->carrierAddress = $carrierAddress;
+        return $this;
+    }
+
+    public function getCarrierAddress(): ?Address
+    {
+        return $this->carrierAddress;
     }
 
     public function addServiceInvoiceTax(ServiceInvoiceTax $service_invoice_tax)
