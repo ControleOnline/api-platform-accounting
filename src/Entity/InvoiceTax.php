@@ -2,7 +2,6 @@
 
 namespace ControleOnline\Entity;
 
-use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
@@ -15,14 +14,24 @@ use ControleOnline\Entity\File;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\Status;
 use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 
 #[ApiResource(
     operations: [
-        new Get(security: 'is_granted(\'ROLE_HUMAN\')'),
+        new GetCollection(
+            name: 'invoice_taxes_without_cte',
+            uriTemplate: '/invoice_taxes/without-cte',
+            controller: ListInvoicesWithoutCteAction::class,
+            read: false,
+            output: false,
+            security: 'is_granted(\'ROLE_HUMAN\')'
+        ),
         new GetCollection(security: 'is_granted(\'ROLE_HUMAN\')'),
+        new Get(
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            requirements: ['id' => '\\d+']
+        ),
         new Post(
             uriTemplate: '/invoice_taxes/upload',
             controller: InvoiceTaxUploadController::class,
@@ -32,15 +41,8 @@ use Symfony\Component\Serializer\Attribute\Groups;
         new Get(
             security: 'is_granted(\'PUBLIC_ACCESS\')',
             uriTemplate: '/invoice_taxes/{id}/download-nf',
-            requirements: ['id' => '[\\w-]+'],
+            requirements: ['id' => '\\d+'],
             controller: DownloadOrderNFAction::class
-        ),
-        new GetCollection(
-            security: 'is_granted(\'ROLE_HUMAN\')',
-            uriTemplate: '/invoice_taxes/without-cte',
-            controller: ListInvoicesWithoutCteAction::class,
-            read: false,
-            output: false
         ),
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
@@ -77,7 +79,7 @@ class InvoiceTax
     #[ORM\OneToMany(targetEntity: ServiceInvoiceTax::class, mappedBy: 'service_invoice_tax')]
     private $service_invoice_tax;
 
-    #[ORM\Column(name: 'invoice_key', type: 'string', nullable: true)]
+    #[ORM\Column(name: 'invoice_key', type: 'string', length: 44, nullable: true)]
     #[Groups(['invoice_tax:read', 'order:read'])]
     private $invoiceKey;
 
@@ -204,7 +206,6 @@ class InvoiceTax
             try {
                 return $this->file->getContent(true);
             } catch (\Throwable $e) {
-                // fallback to invoice string
             }
         }
         return $this->invoice;
@@ -212,7 +213,7 @@ class InvoiceTax
 
     public function setInvoiceKey($invoice_key)
     {
-        $this->invoiceKey = $invoice_key;
+        $this->invoiceKey = $invoice_key === null || $invoice_key === '' ? null : (string) $invoice_key;
         return $this;
     }
 
