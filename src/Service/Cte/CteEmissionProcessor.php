@@ -3,7 +3,6 @@
 namespace ControleOnline\Service\Cte;
 
 use ControleOnline\Entity\Integration;
-use ControleOnline\Entity\Integration;
 use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Entity\People;
 use ControleOnline\Service\FileService;
