@@ -2,16 +2,23 @@
 
 namespace ControleOnline\Tests\Service\Imports;
 
+use ControleOnline\Entity\InvoiceTax;
+use ControleOnline\Entity\People;
+use ControleOnline\Service\FileService;
 use ControleOnline\Service\Imports\InvoiceTaxImportProcessor;
+use ControleOnline\Service\Imports\InvoiceTaxPartyResolver;
+use ControleOnline\Service\Imports\InvoiceTaxXmlParser;
+use ControleOnline\Service\StatusService;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\EntityRepository;
 use PHPUnit\Framework\TestCase;
-use ReflectionClass;
 use ZipArchive;
 
 final class InvoiceTaxImportProcessorTest extends TestCase
 {
     public function testParseNfeXmlExtractsInvoicePeopleAndTotals(): void
     {
-        $parsed = $this->processor()->parseNfeXml($this->nfeXml());
+        $parsed = (new InvoiceTaxXmlParser())->parseNfeXml($this->nfeXml());
 
         self::assertIsArray($parsed);
         self::assertSame('35240112345678000190550010000001231000001234', $parsed['key']);
@@ -29,7 +36,7 @@ final class InvoiceTaxImportProcessorTest extends TestCase
 
     public function testExtractXmlEntriesAcceptsSingleXmlFile(): void
     {
-        $entries = $this->extractXmlEntries($this->nfeXml(), 'nota.xml');
+        $entries = (new InvoiceTaxXmlParser())->extractXmlEntries($this->nfeXml(), 'nota.xml');
 
         self::assertCount(1, $entries);
         self::assertSame('nota.xml', $entries[0]['name']);
@@ -52,7 +59,7 @@ final class InvoiceTaxImportProcessorTest extends TestCase
         $zip->close();
 
         try {
-            $entries = $this->extractXmlEntries((string) file_get_contents($zipPath), 'notas.zip');
+            $entries = (new InvoiceTaxXmlParser())->extractXmlEntries((string) file_get_contents($zipPath), 'notas.zip');
         } finally {
             @unlink($zipPath);
         }
@@ -62,23 +69,117 @@ final class InvoiceTaxImportProcessorTest extends TestCase
         self::assertStringContainsString('<nfeProc', $entries[0]['content']);
     }
 
-    private function processor(): InvoiceTaxImportProcessor
+    public function testFindInvoiceTaxDoesNotTreatForeignCompanyRowAsReusable(): void
     {
-        $reflection = new ReflectionClass(InvoiceTaxImportProcessor::class);
+        if (!$this->canRunTenantTests()) {
+            self::markTestSkipped('People/FileService/StatusService not available in this package checkout.');
+        }
 
-        return $reflection->newInstanceWithoutConstructor();
+        $ownerA = $this->people(1);
+        $ownerB = $this->people(2);
+        $existing = new InvoiceTax();
+        $existing->setCompany($ownerA);
+        $existing->setInvoiceKey('35240112345678000190550010000001231000001234');
+
+        $repository = $this->createMock(EntityRepository::class);
+        $repository->expects(self::once())
+            ->method('findOneBy')
+            ->with(['invoiceKey' => '35240112345678000190550010000001231000001234'])
+            ->willReturn($existing);
+
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('getRepository')->willReturn($repository);
+
+        $processor = $this->processor($em);
+
+        $found = $processor->findInvoiceTax($ownerB, '35240112345678000190550010000001231000001234', 123);
+
+        self::assertSame($existing, $found);
+        self::assertTrue($processor->belongsToOtherCompany($found, $ownerB));
+        self::assertFalse($processor->belongsToOtherCompany($found, $ownerA));
     }
 
-    /**
-     * @return array<int, array{name: string, content: string}>
-     */
-    private function extractXmlEntries(string $content, string $fallbackName): array
+    public function testImportXmlContentRejectsCrossTenantReuse(): void
     {
-        $reflection = new ReflectionClass(InvoiceTaxImportProcessor::class);
-        $method = $reflection->getMethod('extractXmlEntries');
-        $method->setAccessible(true);
+        if (!$this->canRunTenantTests()) {
+            self::markTestSkipped('People/FileService/StatusService not available in this package checkout.');
+        }
 
-        return $method->invoke($this->processor(), $content, $fallbackName);
+        $ownerA = $this->people(1);
+        $ownerB = $this->people(2);
+        $existing = new InvoiceTax();
+        $existing->setCompany($ownerA);
+        $existing->setInvoiceKey('35240112345678000190550010000001231000001234');
+
+        $repository = $this->createMock(EntityRepository::class);
+        $repository->method('findOneBy')->willReturn($existing);
+
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('getRepository')->willReturn($repository);
+
+        $processor = $this->processor($em);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('outra empresa');
+        $processor->importXmlContent($ownerB, 'nota.xml', $this->nfeXml());
+    }
+
+    public function testFindInvoiceTaxReusesSameCompanyRow(): void
+    {
+        if (!$this->canRunTenantTests()) {
+            self::markTestSkipped('People/FileService/StatusService not available in this package checkout.');
+        }
+
+        $owner = $this->people(9);
+        $existing = new InvoiceTax();
+        $existing->setCompany($owner);
+        $existing->setInvoiceKey('35240112345678000190550010000001231000001234');
+
+        $repository = $this->createMock(EntityRepository::class);
+        $repository->expects(self::once())
+            ->method('findOneBy')
+            ->with(['invoiceKey' => '35240112345678000190550010000001231000001234'])
+            ->willReturn($existing);
+
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('getRepository')->willReturn($repository);
+
+        $found = $this->processor($em)->findInvoiceTax(
+            $owner,
+            '35240112345678000190550010000001231000001234',
+            123
+        );
+
+        self::assertSame($existing, $found);
+    }
+
+    private function canRunTenantTests(): bool
+    {
+        return class_exists(People::class)
+            && class_exists(FileService::class)
+            && class_exists(StatusService::class)
+            && class_exists(EntityRepository::class);
+    }
+
+    private function processor(EntityManagerInterface $em): InvoiceTaxImportProcessor
+    {
+        return new InvoiceTaxImportProcessor(
+            $em,
+            $this->createMock(FileService::class),
+            $this->createMock(StatusService::class),
+            new InvoiceTaxXmlParser(),
+            new InvoiceTaxPartyResolver($em)
+        );
+    }
+
+    private function people(int $id): People
+    {
+        $people = new People();
+        $ref = new \ReflectionProperty(People::class, 'id');
+        $ref->setAccessible(true);
+        $ref->setValue($people, $id);
+
+        return $people;
     }
 
     private function nfeXml(): string
