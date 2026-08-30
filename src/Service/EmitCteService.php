@@ -37,7 +37,7 @@ class EmitCteService
         $busy = $this->manager->getConnection()->fetchFirstColumn(
             'SELECT id FROM invoice_tax WHERE id IN (?) AND invoice_task_id IS NOT NULL',
             [$ids],
-            [ArrayParameterType::INTEGER]
+            [Types::INTEGER]
         );
         if ($busy) {
             throw new BadRequestHttpException('Uma ou mais NFs já estão em emissão ou emitidas.');
@@ -71,7 +71,7 @@ class EmitCteService
         $this->manager->getConnection()->executeStatement(
             'UPDATE invoice_tax SET invoice_task_id = ? WHERE id IN (?) AND invoice_task_id IS NULL',
             [$task->getId(), $ids],
-            [\PDO::PARAM_INT, ArrayParameterType::INTEGER]
+            [\PDO::PARAM_INT, Types::INTEGER]
         );
 
         $this->enqueue($task, $ids, $cfop, $extra);
