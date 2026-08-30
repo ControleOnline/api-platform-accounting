@@ -5,7 +5,7 @@ namespace ControleOnline\Service;
 use ControleOnline\Entity\Integration;
 use ControleOnline\Entity\InvoiceTask;
 use ControleOnline\Entity\InvoiceTax;
-use Doctrine\DBAL\ArrayParameterType;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
