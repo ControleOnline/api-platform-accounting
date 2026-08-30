@@ -5,6 +5,7 @@ namespace ControleOnline\Service;
 use ControleOnline\Entity\Address;
 use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Entity\People;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 
@@ -160,7 +161,7 @@ class InvoicesWithoutCteService
                  )
                  ORDER BY d.id DESC',
                 [$ids, '%RNTRC%', '%ANTT%'],
-                [\Doctrine\DBAL\Connection::PARAM_INT_ARRAY, \PDO::PARAM_STR, \PDO::PARAM_STR]
+                [ArrayParameterType::INTEGER, \PDO::PARAM_STR, \PDO::PARAM_STR]
             );
             if (is_string($document) && trim($document) !== '') {
                 return trim($document);
@@ -175,7 +176,7 @@ class InvoicesWithoutCteService
                  WHERE c.people_id IN (?) AND c.config_key = ?
                  ORDER BY c.id DESC',
                 [$ids, 'receita-federal-cte-rntrc'],
-                [\Doctrine\DBAL\Connection::PARAM_INT_ARRAY, \PDO::PARAM_STR]
+                [ArrayParameterType::INTEGER, \PDO::PARAM_STR]
             );
             if (is_string($config) && trim($config) !== '') {
                 return trim($config);
@@ -304,13 +305,13 @@ class InvoicesWithoutCteService
             $sql .= ' AND (it.issuer_id IN (?) OR it.company_id IN (?))';
             $params[] = $scope['companyIds'];
             $params[] = $scope['companyIds'];
-            $types[] = \Doctrine\DBAL\Connection::PARAM_INT_ARRAY;
-            $types[] = \Doctrine\DBAL\Connection::PARAM_INT_ARRAY;
+            $types[] = ArrayParameterType::INTEGER;
+            $types[] = ArrayParameterType::INTEGER;
         }
         if ($ids) {
             $sql .= ' AND it.id IN (?)';
             $params[] = $ids;
-            $types[] = \Doctrine\DBAL\Connection::PARAM_INT_ARRAY;
+            $types[] = ArrayParameterType::INTEGER;
         }
         if (isset($columns['invoice_task_id'])) {
             $sql .= ' AND it.invoice_task_id IS NULL';
