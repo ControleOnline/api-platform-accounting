@@ -24,10 +24,6 @@ class EmitCteAction
             return new JsonResponse([
                 'id' => $task->getId(),
                 '@id' => '/invoice_tasks/' . $task->getId(),
-                '@type' => 'InvoiceTask',
-                'taskType' => $task->getTaskType(),
-                'cfop' => $task->getCfop(),
-                'invoiceTotal' => $task->getInvoiceTotal(),
                 'status' => $task->getStatus()?->getRealStatus(),
             ], 201);
         } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
