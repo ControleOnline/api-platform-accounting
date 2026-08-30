@@ -5,6 +5,7 @@ namespace ControleOnline\Service;
 use ControleOnline\Entity\Integration;
 use ControleOnline\Entity\InvoiceTask;
 use ControleOnline\Entity\InvoiceTax;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
@@ -36,7 +37,7 @@ class EmitCteService
         $busy = $this->manager->getConnection()->fetchFirstColumn(
             'SELECT id FROM invoice_tax WHERE id IN (?) AND invoice_task_id IS NOT NULL',
             [$ids],
-            [\Doctrine\DBAL\Connection::PARAM_INT_ARRAY]
+            [ArrayParameterType::INTEGER]
         );
         if ($busy) {
             throw new BadRequestHttpException('Uma ou mais NFs já estão em emissão ou emitidas.');
@@ -70,7 +71,7 @@ class EmitCteService
         $this->manager->getConnection()->executeStatement(
             'UPDATE invoice_tax SET invoice_task_id = ? WHERE id IN (?) AND invoice_task_id IS NULL',
             [$task->getId(), $ids],
-            [\PDO::PARAM_INT, \Doctrine\DBAL\Connection::PARAM_INT_ARRAY]
+            [\PDO::PARAM_INT, ArrayParameterType::INTEGER]
         );
 
         $this->enqueue($task, $ids, $cfop, $extra);
