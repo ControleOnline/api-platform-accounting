@@ -94,9 +94,6 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         return $invoiceTax;
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
     public function parseNfeXml(string $xmlContent): ?array
     {
         try {
@@ -149,9 +146,6 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         }
     }
 
-    /**
-     * @return array<int, array{name: string, content: string}>
-     */
     private function extractXmlEntries(string $content, string $fallbackName): array
     {
         if ($this->looksLikeXml($content)) {
@@ -202,9 +196,6 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         return $entries;
     }
 
-    /**
-     * @param array<string, mixed> $parsed
-     */
     private function persistInvoiceTax(
         ?People $company,
         string $filename,
@@ -219,6 +210,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $provider = $this->resolveParty($providerData);
         $client = $this->resolveParty($clientData);
         $carrier = $this->resolveParty($carrierData);
+        $this->entityManager->flush();
 
         $providerAddress = $this->resolvePartyAddress($provider, $providerData);
         $clientAddress = $this->resolvePartyAddress($client, $clientData);
@@ -242,10 +234,10 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
                 'xml',
                 false
             );
-
             $invoiceTax->setFile($xmlFile);
         }
 
+        $invoiceTax->setInvoice($xmlContent);
         $invoiceTax->setInvoiceKey($parsed['key'] ?? '');
         $invoiceTax->setInvoiceNumber((int) ($parsed['number'] ?? 0));
         $invoiceTax->setInvoiceModel($parsed['model'] ?? null);
@@ -260,7 +252,6 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $invoiceTax->setClientAddress($clientAddress);
         $invoiceTax->setCarrierAddress($carrierAddress);
         $invoiceTax->setAddress($clientAddress ?? $providerAddress ?? $carrierAddress);
-
         $this->entityManager->persist($invoiceTax);
 
         return $invoiceTax;
@@ -281,9 +272,6 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         return null;
     }
 
-    /**
-     * @param array<string, mixed>|null $party
-     */
     private function resolveParty(?array $party): ?People
     {
         if (!$party || ($party['document'] ?? '') === '') {
@@ -318,13 +306,14 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         }
 
         $this->entityManager->persist($people);
+        $this->entityManager->flush();
 
         $document = new Document();
         $document->setDocument((int) $documentNumber);
         $document->setDocumentType($this->resolveDocumentType($documentType));
         $document->setPeople($people);
-
         $this->entityManager->persist($document);
+        $this->entityManager->flush();
 
         return $people;
     }
@@ -348,13 +337,11 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $documentTypeEntity->setDocumentType($documentType);
         $documentTypeEntity->setPeopleType($documentType === 'CNPJ' ? 'J' : 'F');
         $this->entityManager->persist($documentTypeEntity);
+        $this->entityManager->flush();
 
         return $documentTypeEntity;
     }
 
-    /**
-     * @param array<string, mixed>|null $party
-     */
     private function resolvePartyAddress(?People $people, ?array $party): ?Address
     {
         if (!$people instanceof People || !is_array($party['address'] ?? null)) {
@@ -364,9 +351,6 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         return $this->resolveAddress($people, $party['address']);
     }
 
-    /**
-     * @param array<string, string> $data
-     */
     private function resolveAddress(People $people, array $data): ?Address
     {
         $postalCode = $this->digits($data['postalCode'] ?? '');
@@ -402,6 +386,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
             $city->setIbge(($data['cityCode'] ?? '') !== '' ? (int) $data['cityCode'] : null);
             $city->setSeo(false);
             $this->entityManager->persist($city);
+            $this->entityManager->flush();
         }
 
         $district = $this->entityManager->getRepository(District::class)->findOneBy([
@@ -414,6 +399,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
             $district->setDistrict($districtName);
             $district->setCity($city);
             $this->entityManager->persist($district);
+            $this->entityManager->flush();
         }
 
         $cep = $this->entityManager->getRepository(Cep::class)->findOneBy(['cep' => (int) $postalCode]);
@@ -421,6 +407,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
             $cep = new Cep();
             $cep->setCep((int) $postalCode);
             $this->entityManager->persist($cep);
+            $this->entityManager->flush();
         }
 
         $street = $this->entityManager->getRepository(Street::class)->findOneBy([
@@ -435,6 +422,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
             $street->setCep($cep);
             $street->setConfirmed(true);
             $this->entityManager->persist($street);
+            $this->entityManager->flush();
         }
 
         $number = $this->normalizeAddressNumber($data['number'] ?? '');
@@ -462,7 +450,6 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $address->setOpeningTime(null);
         $address->setClosingTime(null);
         $address->setSearchFor('');
-
         $this->entityManager->persist($address);
 
         return $address;
@@ -472,6 +459,10 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
     {
         if (!$people instanceof People || $company === $people) {
             return;
+        }
+
+        if ($people->getId() === null) {
+            $this->entityManager->flush();
         }
 
         $link = $this->entityManager->getRepository(PeopleLink::class)->findOneBy([
@@ -489,13 +480,9 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $link->setPeople($people);
         $link->setLinkType($linkType);
         $link->setEnabled(true);
-
         $this->entityManager->persist($link);
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
     private function parseParty(?SimpleXMLElement $party, string $addressTag): ?array
     {
         if (!$party instanceof SimpleXMLElement) {
@@ -515,9 +502,6 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         ];
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
     private function parseCarrier(SimpleXMLElement $infNFe): ?array
     {
         $carrier = $this->child($this->child($infNFe, 'transp'), 'transporta');
@@ -550,9 +534,6 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         ];
     }
 
-    /**
-     * @return array<string, string>
-     */
     private function parseAddress(?SimpleXMLElement $address): array
     {
         if (!$address instanceof SimpleXMLElement) {

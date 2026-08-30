@@ -2,7 +2,6 @@
 
 namespace ControleOnline\Entity;
 
-use ApiPlatform\Metadata\ApiFilter;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
@@ -15,14 +14,24 @@ use ControleOnline\Entity\File;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\Status;
 use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Serializer\Attribute\Groups;
 
 #[ApiResource(
     operations: [
-        new Get(security: 'is_granted(\'ROLE_HUMAN\')'),
+        new GetCollection(
+            name: 'invoice_taxes_without_cte',
+            uriTemplate: '/invoice_taxes/without-cte',
+            controller: ListInvoicesWithoutCteAction::class,
+            read: false,
+            output: false,
+            security: 'is_granted(\'ROLE_HUMAN\')'
+        ),
         new GetCollection(security: 'is_granted(\'ROLE_HUMAN\')'),
+        new Get(
+            security: 'is_granted(\'ROLE_HUMAN\')',
+            requirements: ['id' => '\\d+']
+        ),
         new Post(
             uriTemplate: '/invoice_taxes/upload',
             controller: InvoiceTaxUploadController::class,
@@ -32,15 +41,8 @@ use Symfony\Component\Serializer\Attribute\Groups;
         new Get(
             security: 'is_granted(\'PUBLIC_ACCESS\')',
             uriTemplate: '/invoice_taxes/{id}/download-nf',
-            requirements: ['id' => '[\\w-]+'],
+            requirements: ['id' => '\\d+'],
             controller: DownloadOrderNFAction::class
-        ),
-        new GetCollection(
-            security: 'is_granted(\'ROLE_HUMAN\')',
-            uriTemplate: '/invoice_taxes/without-cte',
-            controller: ListInvoicesWithoutCteAction::class,
-            read: false,
-            output: false
         ),
     ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
@@ -70,14 +72,10 @@ class InvoiceTax
     #[ORM\OneToMany(targetEntity: OrderInvoiceTax::class, mappedBy: 'invoiceTax')]
     private $order;
 
-    #[ORM\Column(name: 'invoice', type: 'text', nullable: true)]
-    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
-    private ?string $invoice = null;
-
     #[ORM\OneToMany(targetEntity: ServiceInvoiceTax::class, mappedBy: 'service_invoice_tax')]
     private $service_invoice_tax;
 
-    #[ORM\Column(name: 'invoice_key', type: 'string', nullable: true)]
+    #[ORM\Column(name: 'invoice_key', type: 'string', length: 44, nullable: true)]
     #[Groups(['invoice_tax:read', 'order:read'])]
     private $invoiceKey;
 
@@ -97,6 +95,11 @@ class InvoiceTax
     #[ORM\ManyToOne(targetEntity: InvoiceTax::class)]
     #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
     private $cte;
+
+    #[ORM\JoinColumn(name: 'invoice_task_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\ManyToOne(targetEntity: InvoiceTask::class)]
+    #[Groups(['invoice_tax:read'])]
+    private $invoiceTask;
 
     #[ORM\JoinColumn(name: 'issuer_id', referencedColumnName: 'id', nullable: true)]
     #[ORM\ManyToOne(targetEntity: People::class)]
@@ -192,27 +195,28 @@ class InvoiceTax
         return $this;
     }
 
-    public function setInvoice($invoice)
-    {
-        $this->invoice = $invoice;
-        return $this;
-    }
-
+    #[Groups(['invoice_tax:read'])]
     public function getInvoice()
     {
-        if ($this->file !== null) {
-            try {
-                return $this->file->getContent(true);
-            } catch (\Throwable $e) {
-                // fallback to invoice string
-            }
+        if ($this->file === null) {
+            return null;
         }
-        return $this->invoice;
+
+        try {
+            return $this->file->getContent(true);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    public function setInvoice($invoice)
+    {
+        return $this;
     }
 
     public function setInvoiceKey($invoice_key)
     {
-        $this->invoiceKey = $invoice_key;
+        $this->invoiceKey = $invoice_key === null || $invoice_key === '' ? null : (string) $invoice_key;
         return $this;
     }
 
@@ -263,6 +267,17 @@ class InvoiceTax
     public function getCte(): ?InvoiceTax
     {
         return $this->cte;
+    }
+
+    public function setInvoiceTask(?InvoiceTask $invoiceTask): self
+    {
+        $this->invoiceTask = $invoiceTask;
+        return $this;
+    }
+
+    public function getInvoiceTask(): ?InvoiceTask
+    {
+        return $this->invoiceTask;
     }
 
     public function setIssuer(?People $issuer)
