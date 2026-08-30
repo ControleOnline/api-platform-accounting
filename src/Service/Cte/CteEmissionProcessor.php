@@ -3,7 +3,7 @@
 namespace ControleOnline\Service\Cte;
 
 use ControleOnline\Entity\Integration;
-use ControleOnline\Entity\InvoiceTask;
+use ControleOnline\Entity\Integration;
 use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Entity\People;
 use ControleOnline\Service\FileService;
@@ -31,7 +31,7 @@ class CteEmissionProcessor
         return $processed;
     }
 
-    public function processTask(InvoiceTask $task): InvoiceTax
+    public function processTask(Integration $task): InvoiceTax
     {
         $processing = $this->statusService->discoveryStatus('processing', 'processing', 'invoice_task');
         $task->setStatus($processing);
@@ -92,7 +92,7 @@ class CteEmissionProcessor
         }
     }
 
-    private function persistCte(?People $company, array $invoices, string $xml, string $key, int $number, InvoiceTask $task): InvoiceTax
+    private function persistCte(?People $company, array $invoices, string $xml, string $key, int $number, Integration $task): InvoiceTax
     {
         $total = 0.0;
         foreach ($invoices as $invoice) {
@@ -118,7 +118,7 @@ class CteEmissionProcessor
         $cte->setInvoiceTotal(number_format($total, 2, '.', ''));
         $cte->setCompany($company);
         $cte->setIssuer($company);
-        $cte->setInvoiceTask($task);
+        $cte->setIntegration($task);
         $cte->setStatus($this->statusService->discoveryStatus('closed', 'closed', 'invoice_tax'));
         $first = $invoices[0];
         $cte->setProvider($first->getProvider());
@@ -133,7 +133,7 @@ class CteEmissionProcessor
 
         foreach ($invoices as $invoice) {
             $invoice->setCte($cte);
-            $invoice->setInvoiceTask($task);
+            $invoice->setIntegration($task);
             $this->manager->persist($invoice);
         }
         $this->manager->flush();
@@ -163,9 +163,9 @@ class CteEmissionProcessor
         foreach ($items as $integration) {
             $body = json_decode((string) $integration->getBody(), true) ?: [];
             $taskId = (int) ($body['invoiceTaskId'] ?? 0);
-            $task = $taskId ? $this->manager->getRepository(InvoiceTask::class)->find($taskId) : null;
+            $task = $taskId ? $this->manager->getRepository(Integration::class)->find($taskId) : null;
             try {
-                if ($task instanceof InvoiceTask) {
+                if ($task instanceof Integration) {
                     $this->processTask($task);
                 }
                 $closed = $this->statusService->discoveryStatus('closed', 'closed', 'integration');
@@ -189,7 +189,7 @@ class CteEmissionProcessor
         $pending = $this->statusService->discoveryStatus('pending', 'pending', 'invoice_task');
         $qb = $this->manager->createQueryBuilder()
             ->select('task')
-            ->from(InvoiceTask::class, 'task')
+            ->from(Integration::class, 'task')
             ->andWhere('task.taskType = :type')
             ->setParameter('type', 'cte_emission')
             ->setMaxResults($limit)

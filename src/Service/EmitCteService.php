@@ -40,7 +40,7 @@ class EmitCteService
             ->select('it.id')
             ->from(InvoiceTax::class, 'it')
             ->where('it.id IN (:ids)')
-            ->andWhere('it.invoiceTask IS NOT NULL')
+            ->andWhere('it.integration IS NOT NULL')
             ->setParameter('ids', $ids)
             ->setMaxResults(1)
             ->getQuery()
