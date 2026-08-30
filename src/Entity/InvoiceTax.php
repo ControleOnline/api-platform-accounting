@@ -50,6 +50,7 @@ use Symfony\Component\Serializer\Attribute\Groups;
     denormalizationContext: ['groups' => ['invoice_tax:write']]
 )]
 #[ORM\Table(name: 'invoice_tax')]
+#[ORM\UniqueConstraint(name: 'uniq_invoice_tax_invoice_key', columns: ['invoice_key'])]
 #[ORM\Entity]
 class InvoiceTax
 {
@@ -75,7 +76,7 @@ class InvoiceTax
     #[ORM\OneToMany(targetEntity: ServiceInvoiceTax::class, mappedBy: 'service_invoice_tax')]
     private $service_invoice_tax;
 
-    #[ORM\Column(name: 'invoice_key', type: 'string', length: 44, nullable: true)]
+    #[ORM\Column(name: 'invoice_key', type: 'string', length: 44, nullable: true, unique: true)]
     #[Groups(['invoice_tax:read', 'order:read'])]
     private $invoiceKey;
 
