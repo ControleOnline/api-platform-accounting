@@ -22,6 +22,9 @@ use SimpleXMLElement;
 
 class InvoiceTaxImportProcessor implements ImportProcessorInterface
 {
+    /** @var array<string, InvoiceTax> */
+    private array $invoiceTaxesByKey = [];
+
     public function __construct(
         private EntityManagerInterface $entityManager,
         private FileService $fileService,
@@ -52,6 +55,7 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
 
         $statusOpen = $this->statusService->discoveryStatus('open', 'open', 'invoice_tax');
         $importedCount = 0;
+        $reusedCount = 0;
         $ignoredCount = 0;
 
         foreach ($this->extractXmlEntries((string) $content, $file->getFileName() ?: 'invoice_tax.xml') as $entry) {
@@ -61,15 +65,21 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
                 continue;
             }
 
+            $existing = $this->findInvoiceTax($parsed['key'] ?? '', $parsed['number'] ?? null);
             $this->persistInvoiceTax($import->getPeople(), $entry['name'], $entry['content'], $parsed, $statusOpen);
-            $importedCount++;
+            if ($existing instanceof InvoiceTax) {
+                $reusedCount++;
+            } else {
+                $importedCount++;
+            }
         }
 
         $this->entityManager->flush();
 
         $import->setFeedback(sprintf(
-            '%d nota(s) fiscal(is) importada(s); %d arquivo(s) ignorado(s).',
+            '%d nota(s) fiscal(is) importada(s); %d ja existente(s) reutilizada(s); %d arquivo(s) ignorado(s).',
             $importedCount,
+            $reusedCount,
             $ignoredCount
         ));
     }
@@ -253,6 +263,12 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
         $invoiceTax->setCarrierAddress($carrierAddress);
         $invoiceTax->setAddress($clientAddress ?? $providerAddress ?? $carrierAddress);
         $this->entityManager->persist($invoiceTax);
+        $this->entityManager->flush();
+
+        $key = trim((string) ($parsed['key'] ?? ''));
+        if ($key !== '') {
+            $this->invoiceTaxesByKey[$key] = $invoiceTax;
+        }
 
         return $invoiceTax;
     }
@@ -261,7 +277,16 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
     {
         $key = trim((string) $key);
         if ($key !== '') {
-            return $this->entityManager->getRepository(InvoiceTax::class)->findOneBy(['invoiceKey' => $key]);
+            if (isset($this->invoiceTaxesByKey[$key])) {
+                return $this->invoiceTaxesByKey[$key];
+            }
+
+            $found = $this->entityManager->getRepository(InvoiceTax::class)->findOneBy(['invoiceKey' => $key]);
+            if ($found instanceof InvoiceTax) {
+                $this->invoiceTaxesByKey[$key] = $found;
+            }
+
+            return $found;
         }
 
         $number = (int) $number;
