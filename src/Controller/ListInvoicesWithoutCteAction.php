@@ -22,7 +22,7 @@ class ListInvoicesWithoutCteAction
                 $issuer ? (int) $issuer : null,
                 $ids
             ));
-        } catch (\Throwable $exception) {
+        } catch (\Throwable) {
             return new JsonResponse([
                 'member' => [],
                 'hydra:member' => [],
@@ -30,7 +30,7 @@ class ListInvoicesWithoutCteAction
                 'totalItems' => 0,
                 'totalValue' => 0,
                 'totalWeight' => 0,
-                'error' => $exception->getMessage(),
+                'error' => 'Unable to list invoices without CT-e',
             ], 500);
         }
     }

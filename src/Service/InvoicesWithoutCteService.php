@@ -6,22 +6,32 @@ use ControleOnline\Entity\Address;
 use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Entity\People;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 
 class InvoicesWithoutCteService
 {
     public const NF_MODELS = [55, 65];
     public const CTE_MODEL = 57;
 
-    public function __construct(private EntityManagerInterface $entityManager)
-    {
+    public function __construct(
+        private EntityManagerInterface $entityManager,
+        private TokenStorageInterface $tokenStorage,
+    ) {
     }
 
     public function list(?int $issuerId = null, array $ids = []): array
     {
+        $scope = $this->resolveCompanyScope();
+        if (!$scope['unrestricted'] && $scope['companyIds'] === []) {
+            return $this->emptyPayload();
+        }
+        if ($issuerId && !$scope['unrestricted'] && !in_array($issuerId, $scope['companyIds'], true)) {
+            return $this->emptyPayload();
+        }
         try {
-            $items = $this->listViaSql($issuerId, $ids);
+            $items = $this->listViaSql($issuerId, $ids, $scope);
         } catch (\Throwable) {
-            $items = $this->listViaDoctrine($issuerId, $ids);
+            $items = $this->listViaDoctrine($issuerId, $ids, $scope);
         }
         $groups = $this->groupInvoices($items);
         $totalValue = array_reduce(
@@ -209,7 +219,7 @@ class InvoicesWithoutCteService
         return $alias !== '' ? $alias : ($name !== '' ? $name : $fallback);
     }
 
-    private function listViaDoctrine(?int $issuerId, array $ids): array
+    private function listViaDoctrine(?int $issuerId, array $ids, array $scope): array
     {
         $qb = $this->entityManager->createQueryBuilder()
             ->select('invoiceTax')
@@ -229,6 +239,10 @@ class InvoicesWithoutCteService
         if ($issuerId) {
             $qb->andWhere('issuer.id = :issuerId')->setParameter('issuerId', $issuerId);
         }
+        if (!$scope['unrestricted']) {
+            $qb->andWhere('(issuer.id IN (:allowedCompanies) OR company.id IN (:allowedCompanies) OR invoiceTax.company IN (:allowedCompanies))')
+                ->setParameter('allowedCompanies', $scope['companyIds']);
+        }
         if ($ids) {
             $qb->andWhere('invoiceTax.id IN (:ids)')->setParameter('ids', $ids);
         }
@@ -242,7 +256,7 @@ class InvoicesWithoutCteService
         return array_map(fn(InvoiceTax $invoice) => $this->serializeInvoice($invoice), $invoices);
     }
 
-    private function listViaSql(?int $issuerId, array $ids): array
+    private function listViaSql(?int $issuerId, array $ids, array $scope): array
     {
         $conn = $this->entityManager->getConnection();
         $columns = $this->invoiceTaxColumnSet();
@@ -285,6 +299,13 @@ class InvoicesWithoutCteService
             $sql .= ' AND it.issuer_id = ?';
             $params[] = $issuerId;
             $types[] = \PDO::PARAM_INT;
+        }
+        if (!$scope['unrestricted']) {
+            $sql .= ' AND (it.issuer_id IN (?) OR it.company_id IN (?))';
+            $params[] = $scope['companyIds'];
+            $params[] = $scope['companyIds'];
+            $types[] = \Doctrine\DBAL\Connection::PARAM_INT_ARRAY;
+            $types[] = \Doctrine\DBAL\Connection::PARAM_INT_ARRAY;
         }
         if ($ids) {
             $sql .= ' AND it.id IN (?)';
@@ -361,6 +382,69 @@ class InvoicesWithoutCteService
         $alias = trim((string) ($alias ?? ''));
         $name = trim((string) ($name ?? ''));
         return $alias !== '' ? $alias : ($name !== '' ? $name : $fallback);
+    }
+
+
+    private function emptyPayload(): array
+    {
+        return [
+            'member' => [],
+            'hydra:member' => [],
+            'groups' => [],
+            'totalItems' => 0,
+            'totalValue' => 0,
+            'totalWeight' => 0,
+            'summary' => [
+                'sum' => ['invoiceTotal' => 0, 'weight' => 0],
+                'count' => ['invoices' => 0],
+            ],
+        ];
+    }
+
+    /**
+     * @return array{unrestricted: bool, companyIds: int[]}
+     */
+    private function resolveCompanyScope(): array
+    {
+        $user = $this->tokenStorage->getToken()?->getUser();
+        if (!is_object($user)) {
+            return ['unrestricted' => false, 'companyIds' => []];
+        }
+        $roles = method_exists($user, 'getRoles') ? (array) $user->getRoles() : [];
+        if (in_array('ROLE_SUPER', $roles, true)) {
+            return ['unrestricted' => true, 'companyIds' => []];
+        }
+
+        $people = method_exists($user, 'getPeople') ? $user->getPeople() : null;
+        $peopleId = $people instanceof People ? (int) $people->getId() : 0;
+        if ($peopleId <= 0) {
+            return ['unrestricted' => false, 'companyIds' => []];
+        }
+
+        $ids = [$peopleId];
+        try {
+            $linked = $this->entityManager->getConnection()->fetchFirstColumn(
+                'SELECT company_id FROM people_link WHERE people_id = ? AND (enabled = 1 OR enabled IS NULL)',
+                [$peopleId]
+            );
+            foreach ($linked ?: [] as $companyId) {
+                $ids[] = (int) $companyId;
+            }
+        } catch (\Throwable) {
+            try {
+                $linked = $this->entityManager->getConnection()->fetchFirstColumn(
+                    'SELECT company FROM people_link WHERE people_id = ? AND (enabled = 1 OR enabled IS NULL)',
+                    [$peopleId]
+                );
+                foreach ($linked ?: [] as $companyId) {
+                    $ids[] = (int) $companyId;
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        $ids = array_values(array_unique(array_filter($ids)));
+        return ['unrestricted' => false, 'companyIds' => $ids];
     }
 
     private function busyInvoiceIds(): array
