@@ -18,35 +18,11 @@ class InvoicesWithoutCteService
 
     public function list(?int $issuerId = null, array $ids = []): array
     {
-        $qb = $this->entityManager->createQueryBuilder()
-            ->select('invoiceTax')
-            ->from(InvoiceTax::class, 'invoiceTax')
-            ->leftJoin('invoiceTax.issuer', 'issuer')
-            ->leftJoin('invoiceTax.address', 'address')
-            ->leftJoin('invoiceTax.client', 'client')
-            ->leftJoin('invoiceTax.provider', 'provider')
-            ->leftJoin('invoiceTax.carrier', 'carrier')
-            ->leftJoin('invoiceTax.company', 'company')
-            ->andWhere('invoiceTax.cte IS NULL')
-            ->andWhere('invoiceTax.invoiceModel IS NULL OR invoiceTax.invoiceModel IN (:nfModels)')
-            ->setParameter('nfModels', self::NF_MODELS)
-            ->orderBy('issuer.alias', 'ASC')
-            ->addOrderBy('invoiceTax.invoiceNumber', 'ASC');
-
-        if ($issuerId) {
-            $qb->andWhere('issuer.id = :issuerId')->setParameter('issuerId', $issuerId);
+        try {
+            $items = $this->listViaSql($issuerId, $ids);
+        } catch (\Throwable) {
+            $items = $this->listViaDoctrine($issuerId, $ids);
         }
-        if ($ids) {
-            $qb->andWhere('invoiceTax.id IN (:ids)')->setParameter('ids', $ids);
-        }
-
-        $invoices = $qb->getQuery()->getResult();
-        $busyIds = $this->busyInvoiceIds();
-        $invoices = array_values(array_filter(
-            $invoices,
-            static fn(InvoiceTax $invoice) => !in_array((int) $invoice->getId(), $busyIds, true)
-        ));
-        $items = array_map(fn(InvoiceTax $invoice) => $this->serializeInvoice($invoice), $invoices);
         $groups = $this->groupInvoices($items);
         $totalValue = array_reduce(
             $items,
@@ -233,7 +209,162 @@ class InvoicesWithoutCteService
         return $alias !== '' ? $alias : ($name !== '' ? $name : $fallback);
     }
 
+    private function listViaDoctrine(?int $issuerId, array $ids): array
+    {
+        $qb = $this->entityManager->createQueryBuilder()
+            ->select('invoiceTax')
+            ->from(InvoiceTax::class, 'invoiceTax')
+            ->leftJoin('invoiceTax.issuer', 'issuer')
+            ->leftJoin('invoiceTax.address', 'address')
+            ->leftJoin('invoiceTax.client', 'client')
+            ->leftJoin('invoiceTax.provider', 'provider')
+            ->leftJoin('invoiceTax.carrier', 'carrier')
+            ->leftJoin('invoiceTax.company', 'company')
+            ->andWhere('invoiceTax.cte IS NULL')
+            ->andWhere('invoiceTax.invoiceModel IS NULL OR invoiceTax.invoiceModel IN (:nfModels)')
+            ->setParameter('nfModels', self::NF_MODELS)
+            ->orderBy('issuer.alias', 'ASC')
+            ->addOrderBy('invoiceTax.invoiceNumber', 'ASC');
+
+        if ($issuerId) {
+            $qb->andWhere('issuer.id = :issuerId')->setParameter('issuerId', $issuerId);
+        }
+        if ($ids) {
+            $qb->andWhere('invoiceTax.id IN (:ids)')->setParameter('ids', $ids);
+        }
+
+        $invoices = $qb->getQuery()->getResult();
+        $busyIds = $this->busyInvoiceIds();
+        $invoices = array_values(array_filter(
+            $invoices,
+            static fn(InvoiceTax $invoice) => !in_array((int) $invoice->getId(), $busyIds, true)
+        ));
+        return array_map(fn(InvoiceTax $invoice) => $this->serializeInvoice($invoice), $invoices);
+    }
+
+    private function listViaSql(?int $issuerId, array $ids): array
+    {
+        $conn = $this->entityManager->getConnection();
+        $columns = $this->invoiceTaxColumnSet();
+        $select = [
+            'it.id',
+            'it.invoice_number',
+            'it.invoice_key',
+            'it.invoice_model',
+            'it.invoice_total',
+            'it.cte_id',
+            'it.issuer_id',
+            'it.company_id',
+            'it.client_id',
+            'it.provider_id',
+            'it.carrier_id',
+            'it.address_id',
+            'issuer.alias AS issuer_alias',
+            'issuer.name AS issuer_name',
+            'company.alias AS company_alias',
+            'company.name AS company_name',
+            'client.alias AS client_alias',
+            'client.name AS client_name',
+            'provider.alias AS provider_alias',
+            'provider.name AS provider_name',
+            'carrier.alias AS carrier_alias',
+            'carrier.name AS carrier_name',
+        ];
+        $sql = 'SELECT ' . implode(', ', $select) . '
+            FROM invoice_tax it
+            LEFT JOIN people issuer ON issuer.id = it.issuer_id
+            LEFT JOIN people company ON company.id = it.company_id
+            LEFT JOIN people client ON client.id = it.client_id
+            LEFT JOIN people provider ON provider.id = it.provider_id
+            LEFT JOIN people carrier ON carrier.id = it.carrier_id
+            WHERE it.cte_id IS NULL
+              AND (it.invoice_model IS NULL OR it.invoice_model IN (55, 65))';
+        $params = [];
+        $types = [];
+        if ($issuerId) {
+            $sql .= ' AND it.issuer_id = ?';
+            $params[] = $issuerId;
+            $types[] = \PDO::PARAM_INT;
+        }
+        if ($ids) {
+            $sql .= ' AND it.id IN (?)';
+            $params[] = $ids;
+            $types[] = \Doctrine\DBAL\Connection::PARAM_INT_ARRAY;
+        }
+        if (isset($columns['invoice_task_id'])) {
+            $sql .= ' AND it.invoice_task_id IS NULL';
+        }
+        $sql .= ' ORDER BY issuer.alias ASC, it.invoice_number ASC';
+        $rows = $conn->fetchAllAssociative($sql, $params, $types);
+        $items = [];
+        foreach ($rows as $row) {
+            $items[] = $this->serializeSqlRow($row);
+        }
+        return $items;
+    }
+
+    private function invoiceTaxColumnSet(): array
+    {
+        static $set = null;
+        if ($set !== null) {
+            return $set;
+        }
+        $set = [];
+        try {
+            $names = $this->entityManager->getConnection()->fetchFirstColumn('SHOW COLUMNS FROM invoice_tax');
+            foreach ($names ?: [] as $name) {
+                $set[strtolower((string) $name)] = true;
+            }
+        } catch (\Throwable) {
+            $set = [];
+        }
+        return $set;
+    }
+
+    private function serializeSqlRow(array $row): array
+    {
+        $companyId = isset($row['company_id']) && $row['company_id'] !== null ? (int) $row['company_id'] : (isset($row['issuer_id']) && $row['issuer_id'] !== null ? (int) $row['issuer_id'] : null);
+        $companyName = $this->preferName($row['company_alias'] ?? null, $row['company_name'] ?? null, 'Empresa não informada');
+        if ($companyName === 'Empresa não informada') {
+            $companyName = $this->preferName($row['issuer_alias'] ?? null, $row['issuer_name'] ?? null, 'Empresa não informada');
+        }
+        return [
+            '@id' => '/invoice_taxes/' . (int) $row['id'],
+            'id' => (int) $row['id'],
+            'invoiceNumber' => $row['invoice_number'] !== null ? (int) $row['invoice_number'] : null,
+            'invoiceKey' => $row['invoice_key'] ?? null,
+            'invoiceModel' => $row['invoice_model'] !== null ? (int) $row['invoice_model'] : null,
+            'invoiceTotal' => $row['invoice_total'] === null ? 0 : (float) $row['invoice_total'],
+            'weight' => 0.0,
+            'rntrc' => '',
+            'cteId' => $row['cte_id'] !== null ? (int) $row['cte_id'] : null,
+            'companyId' => $companyId,
+            'companyName' => $companyName,
+            'issuerId' => $row['issuer_id'] !== null ? (int) $row['issuer_id'] : null,
+            'issuerName' => $this->preferName($row['issuer_alias'] ?? null, $row['issuer_name'] ?? null, 'Emitente não informado'),
+            'clientId' => $row['client_id'] !== null ? (int) $row['client_id'] : null,
+            'clientName' => $this->preferName($row['client_alias'] ?? null, $row['client_name'] ?? null, 'Destinatário não informado'),
+            'providerId' => $row['provider_id'] !== null ? (int) $row['provider_id'] : null,
+            'providerName' => $this->preferName($row['provider_alias'] ?? null, $row['provider_name'] ?? null, 'Remetente não informado'),
+            'carrierId' => $row['carrier_id'] !== null ? (int) $row['carrier_id'] : null,
+            'carrierName' => $this->preferName($row['carrier_alias'] ?? null, $row['carrier_name'] ?? null, 'Transportadora não informada'),
+            'addressId' => $row['address_id'] !== null ? (int) $row['address_id'] : null,
+            'addressLabel' => 'Endereço não informado',
+            'providerAddressLabel' => 'Endereço não informado',
+            'clientAddressLabel' => 'Endereço não informado',
+            'carrierAddressLabel' => 'Endereço não informado',
+        ];
+    }
+
+    private function preferName(mixed $alias, mixed $name, string $fallback): string
+    {
+        $alias = trim((string) ($alias ?? ''));
+        $name = trim((string) ($name ?? ''));
+        return $alias !== '' ? $alias : ($name !== '' ? $name : $fallback);
+    }
+
     private function busyInvoiceIds(): array
+
     {
         try {
             $ids = $this->entityManager->getConnection()->fetchFirstColumn(
