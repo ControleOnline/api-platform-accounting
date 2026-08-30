@@ -21,8 +21,8 @@ class EmitCteService
     public function emit(array $invoiceTaxIds, string $cfop, array $extra = []): InvoiceTask
     {
         $ids = array_values(array_unique(array_filter(array_map('intval', $invoiceTaxIds))));
-        if (count($ids) < 2) {
-            throw new BadRequestHttpException('Selecione mais de uma NF para emitir o CT-e.');
+        if (count($ids) < 1) {
+            throw new BadRequestHttpException('Selecione ao menos uma NF para emitir o CT-e.');
         }
         if (trim($cfop) === '') {
             throw new BadRequestHttpException('CFOP é obrigatório.');
