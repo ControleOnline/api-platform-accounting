@@ -3,8 +3,9 @@
 namespace ControleOnline\Service;
 
 use ControleOnline\Entity\Integration;
-use ControleOnline\Entity\InvoiceTask;
 use ControleOnline\Entity\InvoiceTax;
+use ControleOnline\Service\IntegrationService;
+use ControleOnline\Service\StatusService;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -16,10 +17,11 @@ class EmitCteService
         private EntityManagerInterface $manager,
         private StatusService $statusService,
         private TokenStorageInterface $tokenStorage,
+        private IntegrationService $integrationService,
     ) {
     }
 
-    public function emit(array $invoiceTaxIds, string $cfop, array $extra = []): InvoiceTask
+    public function emit(array $invoiceTaxIds, string $cfop, array $extra = []): \ControleOnline\Entity\Integration
     {
         $ids = array_values(array_unique(array_filter(array_map('intval', $invoiceTaxIds))));
         if (count($ids) < 1) {
@@ -34,11 +36,15 @@ class EmitCteService
             throw new BadRequestHttpException('Uma ou mais NFs não foram encontradas.');
         }
 
-        $busy = $this->manager->getConnection()->fetchFirstColumn(
-            'SELECT id FROM invoice_tax WHERE id IN (?) AND invoice_task_id IS NOT NULL',
-            [$ids],
-            [Types::INTEGER]
-        );
+        $busy = $this->manager->createQueryBuilder()
+            ->select('it.id')
+            ->from(InvoiceTax::class, 'it')
+            ->where('it.id IN (:ids)')
+            ->andWhere('it.invoiceTask IS NOT NULL')
+            ->setParameter('ids', $ids)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
         if ($busy) {
             throw new BadRequestHttpException('Uma ou mais NFs já estão em emissão ou emitidas.');
         }
@@ -49,30 +55,15 @@ class EmitCteService
             $total += (float) ($invoice->getInvoiceTotal() ?? 0);
         }
 
-        $status = $this->statusService->discoveryStatus('pending', 'pending', 'invoice_task');
-        $task = new InvoiceTask();
-        $task->setTaskType('cte_emission');
-        $task->setStatus($status);
-        $task->setCompany($first->getCompany());
-        $task->setAddress($first->getAddress());
-        $task->setCfop($cfop);
-        $task->setInvoiceTotal(number_format($total, 2, '.', ''));
-        $task->setPayload(json_encode([
+        // Build payload for integration
+        $payload = json_encode([
             'invoiceTaxIds' => $ids,
             'cfop' => $cfop,
             'extra' => $extra,
             'companyId' => $first->getCompany()?->getId(),
             'addressId' => $first->getAddress()?->getId(),
             'invoiceTotal' => $total,
-        ], JSON_UNESCAPED_UNICODE));
-        $this->manager->persist($task);
-        $this->manager->flush();
-
-        $this->manager->getConnection()->executeStatement(
-            'UPDATE invoice_tax SET invoice_task_id = ? WHERE id IN (?) AND invoice_task_id IS NULL',
-            [$task->getId(), $ids],
-            [\PDO::PARAM_INT, Types::INTEGER]
-        );
+            ->execute();
 
         $this->enqueue($task, $ids, $cfop, $extra);
         $this->manager->flush();
@@ -80,8 +71,7 @@ class EmitCteService
         return $task;
     }
 
-    private function enqueue(InvoiceTask $task, array $ids, string $cfop, array $extra): void
-    {
+    // The enqueue logic is now handled inside IntegrationService; method removed
         if (!class_exists(Integration::class)) {
             return;
         }

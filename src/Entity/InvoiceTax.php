@@ -9,6 +9,7 @@ use ApiPlatform\Metadata\Post;
 use ControleOnline\Controller\DownloadOrderNFAction;
 use ControleOnline\Controller\InvoiceTaxUploadController;
 use ControleOnline\Controller\ListInvoicesWithoutCteAction;
+use ControleOnline\Controller\EmitCteAction;
 use ControleOnline\Entity\Address;
 use ControleOnline\Entity\File;
 use ControleOnline\Entity\People;
@@ -37,6 +38,12 @@ use Symfony\Component\Serializer\Attribute\Groups;
             controller: InvoiceTaxUploadController::class,
             deserialize: false,
             security: 'is_granted(\'ROLE_HUMAN\')'
+        ),
+        new Post(
+            uriTemplate: '/invoice_tasks/emit-cte',
+            controller: EmitCteAction::class,
+            deserialize: false,
+            security: "is_granted('ROLE_HUMAN')"
         ),
         new Get(
             security: 'is_granted(\'PUBLIC_ACCESS\')',
