@@ -48,48 +48,18 @@ class EmitCteService
         if ($busy) {
             throw new BadRequestHttpException('Uma ou mais NFs já estão em emissão ou emitidas.');
         }
-
-        $first = $invoices[0];
-        $total = 0.0;
-        foreach ($invoices as $invoice) {
-            $total += (float) ($invoice->getInvoiceTotal() ?? 0);
-        }
-
-        // Build payload for integration
+        // Build payload and create integration
         $payload = json_encode([
             'invoiceTaxIds' => $ids,
             'cfop' => $cfop,
             'extra' => $extra,
-            'companyId' => $first->getCompany()?->getId(),
-            'addressId' => $first->getAddress()?->getId(),
-            'invoiceTotal' => $total,
-            ->execute();
+        ], JSON_UNESCAPED_UNICODE);
 
-        $this->enqueue($task, $ids, $cfop, $extra);
-        $this->manager->flush();
-
-        return $task;
-    }
-
-    // The enqueue logic is now handled inside IntegrationService; method removed
-        if (!class_exists(Integration::class)) {
-            return;
-        }
-
-        $queueStatus = $this->statusService->discoveryStatus('open', 'open', 'integration');
-        $integration = new Integration();
-        $integration->setQueueName('cte_emission');
-        $integration->setStatus($queueStatus);
-        $integration->setBody(json_encode([
-            'invoiceTaskId' => $task->getId(),
-            'invoiceTaxIds' => $ids,
-            'cfop' => $cfop,
-            'extra' => $extra,
-        ], JSON_UNESCAPED_UNICODE));
         $user = $this->tokenStorage->getToken()?->getUser();
-        if (is_object($user) && method_exists($integration, 'setUser')) {
-            $integration->setUser($user);
-        }
-        $this->manager->persist($integration);
+        $integration = $this->integrationService->addIntegration($payload, 'cte_emission', null, $user);
+
+        return $integration;
     }
+
+
 }
