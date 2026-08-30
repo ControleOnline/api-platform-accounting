@@ -9,6 +9,7 @@ use ApiPlatform\Metadata\Post;
 use ControleOnline\Controller\DownloadOrderNFAction;
 use ControleOnline\Controller\InvoiceTaxUploadController;
 use ControleOnline\Controller\ListInvoicesWithoutCteAction;
+use ControleOnline\Controller\EmitCteAction;
 use ControleOnline\Entity\Address;
 use ControleOnline\Entity\File;
 use ControleOnline\Entity\People;
@@ -37,6 +38,12 @@ use Symfony\Component\Serializer\Attribute\Groups;
             controller: InvoiceTaxUploadController::class,
             deserialize: false,
             security: 'is_granted(\'ROLE_HUMAN\')'
+        ),
+        new Post(
+            uriTemplate: '/invoice_tasks/emit-cte',
+            controller: EmitCteAction::class,
+            deserialize: false,
+            security: "is_granted('ROLE_HUMAN')"
         ),
         new Get(
             security: 'is_granted(\'PUBLIC_ACCESS\')',
@@ -98,9 +105,9 @@ class InvoiceTax
     private $cte;
 
     #[ORM\JoinColumn(name: 'invoice_task_id', referencedColumnName: 'id', nullable: true)]
-    #[ORM\ManyToOne(targetEntity: InvoiceTask::class)]
+    #[ORM\ManyToOne(targetEntity: Integration::class)]
     #[Groups(['invoice_tax:read'])]
-    private $invoiceTask;
+    private $integration;
 
     #[ORM\JoinColumn(name: 'issuer_id', referencedColumnName: 'id', nullable: true)]
     #[ORM\ManyToOne(targetEntity: People::class)]
@@ -270,15 +277,15 @@ class InvoiceTax
         return $this->cte;
     }
 
-    public function setInvoiceTask(?InvoiceTask $invoiceTask): self
+    public function setIntegration(?Integration $integration): self
     {
-        $this->invoiceTask = $invoiceTask;
+        $this->integration = $integration;
         return $this;
     }
 
-    public function getInvoiceTask(): ?InvoiceTask
+    public function getIntegration(): ?Integration
     {
-        return $this->invoiceTask;
+        return $this->integration;
     }
 
     public function setIssuer(?People $issuer)
