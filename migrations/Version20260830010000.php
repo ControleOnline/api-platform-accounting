@@ -10,7 +10,7 @@ final class Version20260830010000 extends AbstractMigration
 {
     public function getDescription(): string
     {
-        return 'Deduplicate invoice_tax by invoice_key and add UNIQUE constraint';
+        return 'Deduplicate invoice_tax by invoice_key and create UNIQUE INDEX uniq_invoice_tax_invoice_key';
     }
 
     public function up(Schema $schema): void
@@ -20,43 +20,25 @@ final class Version20260830010000 extends AbstractMigration
         }
 
         $this->addSql("UPDATE `invoice_tax` SET `invoice_key` = NULL WHERE `invoice_key` = ''");
-    }
 
-    public function postUp(Schema $schema): void
-    {
-        if (!$this->tableExists('invoice_tax') || !$this->columnExists('invoice_tax', 'invoice_key')) {
-            return;
-        }
+        $this->repointDuplicatesSql('order_invoice_tax', 'invoice_tax_id');
+        $this->repointDuplicatesSql('service_invoice_tax', 'service_invoice_tax_id');
+        $this->repointDuplicatesSql('service_invoice_tax', 'invoice_tax_id');
+        $this->repointDuplicatesSql('invoice_tax', 'cte_id');
 
-        $duplicates = $this->connection->fetchAllAssociative(
-            'SELECT `invoice_key`, MIN(`id`) AS keep_id
-             FROM `invoice_tax`
-             WHERE `invoice_key` IS NOT NULL
-             GROUP BY `invoice_key`
-             HAVING COUNT(*) > 1'
+        $this->addSql(
+            'DELETE `dup` FROM `invoice_tax` `dup`
+             INNER JOIN (
+                SELECT `invoice_key`, MIN(`id`) AS `keep_id`
+                FROM `invoice_tax`
+                WHERE `invoice_key` IS NOT NULL
+                GROUP BY `invoice_key`
+             ) `keep` ON `keep`.`invoice_key` = `dup`.`invoice_key`
+             WHERE `dup`.`id` <> `keep`.`keep_id`'
         );
 
-        foreach ($duplicates as $row) {
-            $keepId = (int) $row['keep_id'];
-            $key = (string) $row['invoice_key'];
-            $dropIds = $this->connection->fetchFirstColumn(
-                'SELECT `id` FROM `invoice_tax` WHERE `invoice_key` = ? AND `id` <> ?',
-                [$key, $keepId]
-            );
-
-            foreach ($dropIds as $dropId) {
-                $this->repoint('order_invoice_tax', 'invoice_tax_id', (int) $dropId, $keepId);
-                $this->repoint('service_invoice_tax', 'service_invoice_tax_id', (int) $dropId, $keepId);
-                $this->repoint('service_invoice_tax', 'invoice_tax_id', (int) $dropId, $keepId);
-                $this->repoint('invoice_tax', 'cte_id', (int) $dropId, $keepId);
-                $this->connection->delete('invoice_tax', ['id' => (int) $dropId]);
-            }
-        }
-
         if (!$this->indexExists('invoice_tax', 'uniq_invoice_tax_invoice_key')) {
-            $this->connection->executeStatement(
-                'CREATE UNIQUE INDEX `uniq_invoice_tax_invoice_key` ON `invoice_tax` (`invoice_key`)'
-            );
+            $this->addSql('CREATE UNIQUE INDEX `uniq_invoice_tax_invoice_key` ON `invoice_tax` (`invoice_key`)');
         }
     }
 
@@ -67,16 +49,27 @@ final class Version20260830010000 extends AbstractMigration
         }
     }
 
-    private function repoint(string $table, string $column, int $fromId, int $toId): void
+    private function repointDuplicatesSql(string $table, string $column): void
     {
         if (!$this->tableExists($table) || !$this->columnExists($table, $column)) {
             return;
         }
 
-        $this->connection->executeStatement(
-            sprintf('UPDATE `%s` SET `%s` = ? WHERE `%s` = ?', $table, $column, $column),
-            [$toId, $fromId]
-        );
+        $this->addSql(sprintf(
+            'UPDATE `%s` `ref`
+             INNER JOIN `invoice_tax` `dup` ON `dup`.`id` = `ref`.`%s`
+             INNER JOIN (
+                SELECT `invoice_key`, MIN(`id`) AS `keep_id`
+                FROM `invoice_tax`
+                WHERE `invoice_key` IS NOT NULL
+                GROUP BY `invoice_key`
+             ) `keep` ON `keep`.`invoice_key` = `dup`.`invoice_key`
+             SET `ref`.`%s` = `keep`.`keep_id`
+             WHERE `dup`.`id` <> `keep`.`keep_id`',
+            $table,
+            $column,
+            $column
+        ));
     }
 
     private function tableExists(string $tableName): bool
