@@ -6,6 +6,10 @@ namespace DoctrineMigrations\Accounting;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 
+/**
+ * Mantida para não quebrar doctrine_migration_versions.
+ * Schema real agora é garantido por Version20260829214000.
+ */
 final class Version20260829180000 extends AbstractMigration
 {
     public function getDescription(): string
