@@ -50,7 +50,7 @@ class CteXmlBuilder
         // rem
         $rem = $this->buildParty($first->getProvider() ?: $first->getIssuer(), $first->getProviderAddress(), $fiscal);
         $make->tagrem($rem);
-        $make->tagenderRem($this->buildEnder($first->getProviderAddress()));
+        $make->tagenderReme($this->buildEnder($first->getProviderAddress()));
 
         // dest
         $dest = $this->buildParty($first->getClient(), $first->getClientAddress() ?: $first->getAddress(), $fiscal);
@@ -68,13 +68,12 @@ class CteXmlBuilder
         $make->tagvPrest($vPrest);
 
         // imp
-        $imp = new \stdClass();
-        $imp->ICMS00 = new \stdClass();
-        $imp->ICMS00->CST = '00';
-        $imp->ICMS00->vBC = '0.00';
-        $imp->ICMS00->pICMS = '0.00';
-        $imp->ICMS00->vICMS = '0.00';
-        $make->tagimp($imp);
+        $icms = new \stdClass();
+        $icms->cst = '00';
+        $icms->vBC = '0.00';
+        $icms->pICMS = '0.00';
+        $icms->vICMS = '0.00';
+        $make->tagicms($icms);
 
         // infCTeNorm
         $make->taginfCTeNorm();
@@ -104,8 +103,22 @@ class CteXmlBuilder
         $rntrc = preg_replace('/\D+/', '', (string) ($extra['rntrc'] ?? $fiscal['rntrc'] ?? $fiscal['receita-federal-cte-rntrc'] ?? '00000000')) ?: '00000000';
         $rodo->RNTRC = $rntrc;
         $make->tagrodo($rodo);
+        $make->taginfRespTec($this->buildInfRespTec($fiscal));
 
-        return $make->getXML();
+        try {
+            return $make->getXML();
+        } catch (\RuntimeException $exception) {
+            $errors = $make->getErrors();
+            if ($errors !== []) {
+                throw new \RuntimeException(
+                    $exception->getMessage() . ' ' . json_encode($errors, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    0,
+                    $exception
+                );
+            }
+
+            throw $exception;
+        }
     }
 
     private function buildChave(array $invoices, array $fiscal, string $cfop): string
@@ -113,7 +126,8 @@ class CteXmlBuilder
         $first = $invoices[0];
         $company = $first->getCompany() ?: $first->getIssuer();
         $cnpj = preg_replace('/\D+/', '', $this->peopleDocument($company) ?: '00000000000000');
-        $cUF = substr((string) ($fiscal['receita-federal-ibge-code'] ?? '3550308'), 0, 2);
+        $ibgeCode = $this->ibgeCode($fiscal);
+        $cUF = substr($ibgeCode, 0, 2);
         $mod = '57';
         $serie = (int) ($fiscal['receita-federal-cte-serie'] ?? 1);
         $nCT = (int) ($fiscal['nextNumber'] ?? 1);
@@ -127,7 +141,8 @@ class CteXmlBuilder
     {
         $first = $invoices[0];
         $ide = new \stdClass();
-        $ide->cUF = substr((string) ($fiscal['receita-federal-ibge-code'] ?? '3550308'), 0, 2);
+        $ibgeCode = $this->ibgeCode($fiscal);
+        $ide->cUF = substr($ibgeCode, 0, 2);
         $ide->cCT = str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT);
         $ide->CFOP = $cfop;
         $ide->natOp = $extra['natureza'] ?? 'PRESTACAO DE SERVICO DE TRANSPORTE';
@@ -142,7 +157,7 @@ class CteXmlBuilder
         $ide->tpCTe = '0';
         $ide->procEmi = '0';
         $ide->verProc = 'controleonline-1.0';
-        $ide->cMunEnv = (string) ($fiscal['receita-federal-ibge-code'] ?? '3550308');
+        $ide->cMunEnv = $ibgeCode;
         $ide->xMunEnv = $this->cityName($first->getAddress());
         $ide->UFEnv = $this->uf($first->getAddress());
         $ide->modal = '01';
@@ -171,7 +186,14 @@ class CteXmlBuilder
         $emit->IE = 'ISENTO';
         $emit->xNome = $company?->getName() ?: $company?->getAlias() ?: 'SEM NOME';
         $emit->xFant = $company?->getAlias() ?: $emit->xNome;
+        $emit->CRT = (string) ($fiscal['receita-federal-tax-regime'] ?? $fiscal['crt'] ?? '1');
         return $emit;
+    }
+
+    private function ibgeCode(array $fiscal): string
+    {
+        $code = preg_replace('/\D+/', '', (string) ($fiscal['receita-federal-ibge-code'] ?? ''));
+        return $code !== '' ? $code : '3550308';
     }
 
     private function buildParty(?People $people, ?Address $address, array $fiscal): \stdClass
@@ -202,6 +224,16 @@ class CteXmlBuilder
         $ender->cPais = '1058';
         $ender->xPais = 'Brasil';
         return $ender;
+    }
+
+    private function buildInfRespTec(array $fiscal): \stdClass
+    {
+        $resp = new \stdClass();
+        $resp->CNPJ = preg_replace('/\D+/', '', (string) ($fiscal['receita-federal-cte-responsavel-cnpj'] ?? '99999999999999'));
+        $resp->xContato = (string) ($fiscal['receita-federal-cte-responsavel-contato'] ?? 'Controle Online');
+        $resp->email = (string) ($fiscal['receita-federal-cte-responsavel-email'] ?? 'suporte@controleonline.com');
+        $resp->fone = preg_replace('/\D+/', '', (string) ($fiscal['receita-federal-cte-responsavel-fone'] ?? '1130000000'));
+        return $resp;
     }
 
     public function extractKey(string $xml): ?string

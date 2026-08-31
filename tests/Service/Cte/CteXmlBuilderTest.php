@@ -30,6 +30,7 @@ final class CteXmlBuilderTest extends TestCase
         self::assertStringContainsString('<CFOP>5353</CFOP>', $xml);
         self::assertStringContainsString('<chave>35240112345678000190550010000001231000001234</chave>', $xml);
         self::assertStringContainsString('<chave>35240112345678000190550010000001241000001245</chave>', $xml);
+        self::assertStringContainsString('<enderReme>', $xml);
         self::assertStringContainsString('<vTPrest>30.50</vTPrest>', $xml);
         self::assertMatchesRegularExpression('/Id="CTe[0-9]{44}"/', $xml);
 
