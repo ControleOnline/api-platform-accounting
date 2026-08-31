@@ -13,6 +13,8 @@ use ControleOnline\Controller\EmitCteAction;
 use ControleOnline\Entity\Address;
 use ControleOnline\Entity\File;
 use ControleOnline\Entity\People;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ApiPlatform\Metadata\ApiFilter;
 use ControleOnline\Entity\Status;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
@@ -56,6 +58,7 @@ use Symfony\Component\Serializer\Attribute\Groups;
     normalizationContext: ['groups' => ['invoice_tax:read']],
     denormalizationContext: ['groups' => ['invoice_tax:write']]
 )]
+#[ApiFilter(filterClass: SearchFilter::class, properties: ['invoiceModel' => 'exact', 'invoice_model' => 'exact', 'status' => 'exact', 'status.realStatus' => 'exact', 'invoiceNumber' => 'exact'])]
 #[ORM\Table(name: 'invoice_tax')]
 #[ORM\UniqueConstraint(name: 'uniq_invoice_tax_invoice_key', columns: ['invoice_key'])]
 #[ORM\Entity]
