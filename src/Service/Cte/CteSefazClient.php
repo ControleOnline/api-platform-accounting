@@ -37,42 +37,45 @@ class CteSefazClient
         $tools->model('57');
         $signed = $tools->signCTe($xml);
 
-        $lote = substr(str_replace(',', '', number_format(microtime(true) * 1000000, 0)), 0, 15);
-        if (method_exists($tools, 'sefazEnviaCTe')) {
-            $response = $tools->sefazEnviaCTe($signed);
-        } else {
-            // Fallback for testing / missing SEFAZ lib - mock as authorized
-            $response = '<retEnviCte><cStat>104</cStat><xMotivo>Lote processado (mock)</xMotivo><infRec><nRec>123456789012345</nRec></infRec></retEnviCte>';
-        }
+        $response = $tools->sefazEnviaCTe($signed);
         $std = class_exists(Standardize::class)
             ? (new Standardize($response))->toStd()
             : json_decode(json_encode($response));
 
-        $cStat = (string) ($std->cStat ?? '');
-        if ($cStat !== '103' && $cStat !== '104') {
-            throw new \RuntimeException('SEFAZ recusou o lote do CT-e: ' . $cStat . ' ' . ($std->xMotivo ?? ''));
-        }
-
-        $nRec = $std->infRec->nRec ?? null;
-        $authorizedXml = $signed;
+        $cStat = (string) ($std->cStat ?? $std->protCTe->infProt->cStat ?? '');
         $authorized = false;
-        if ($nRec) {
-            $recibo = $tools->sefazConsultaRecibo($nRec);
-            $prot = class_exists(Standardize::class)
-                ? (new Standardize($recibo))->toStd()
-                : json_decode(json_encode($recibo));
-            $protStat = (string) ($prot->protCTe->infProt->cStat ?? $prot->cStat ?? '');
-            $authorized = $protStat === '100';
+        $authorizedXml = $signed;
+        if ($cStat === '100') {
+            $authorized = true;
             if (method_exists($tools, 'addProtocolo')) {
                 try {
-                    $authorizedXml = $tools->addProtocolo($signed, $recibo, true);
+                    $authorizedXml = $tools->addProtocolo($signed, $response, true);
                 } catch (\Throwable) {
                     $authorizedXml = $signed;
                 }
             }
-            if (!$authorized) {
-                throw new \RuntimeException('CT-e não autorizado: ' . $protStat . ' ' . ($prot->protCTe->infProt->xMotivo ?? $prot->xMotivo ?? ''));
+        } elseif ($cStat === '103' || $cStat === '104') {
+            $nRec = $std->infRec->nRec ?? null;
+            if ($nRec) {
+                $recibo = $tools->sefazConsultaRecibo($nRec);
+                $prot = class_exists(Standardize::class)
+                    ? (new Standardize($recibo))->toStd()
+                    : json_decode(json_encode($recibo));
+                $protStat = (string) ($prot->protCTe->infProt->cStat ?? $prot->cStat ?? '');
+                $authorized = $protStat === '100';
+                if (method_exists($tools, 'addProtocolo')) {
+                    try {
+                        $authorizedXml = $tools->addProtocolo($signed, $recibo, true);
+                    } catch (\Throwable) {
+                        $authorizedXml = $signed;
+                    }
+                }
+                if (!$authorized) {
+                    throw new \RuntimeException('CT-e não autorizado: ' . $protStat . ' ' . ($prot->protCTe->infProt->xMotivo ?? $prot->xMotivo ?? ''));
+                }
             }
+        } else {
+            throw new \RuntimeException('SEFAZ recusou o CT-e: ' . $cStat . ' ' . ($std->xMotivo ?? $std->protCTe->infProt->xMotivo ?? ''));
         }
 
         $builder = new CteXmlBuilder();
