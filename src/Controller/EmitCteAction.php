@@ -28,8 +28,8 @@ class EmitCteAction
             ], 201);
         } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], $exception->getStatusCode());
-        } catch (\Throwable $exception) {
-            return new JsonResponse(['error' => $exception->getMessage()], 500);
+        } catch (\Throwable) {
+            return new JsonResponse(['error' => 'Falha ao emitir CT-e.'], 500);
         }
     }
 }
