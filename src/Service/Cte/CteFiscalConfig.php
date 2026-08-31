@@ -5,6 +5,7 @@ namespace ControleOnline\Service\Cte;
 use ControleOnline\Entity\Config;
 use ControleOnline\Entity\File;
 use ControleOnline\Entity\People;
+use ControleOnline\Service\ConfigService;
 use Doctrine\ORM\EntityManagerInterface;
 
 class CteFiscalConfig
@@ -21,24 +22,21 @@ class CteFiscalConfig
         'receita-federal-cte-rntrc',
     ];
 
-    public function __construct(private EntityManagerInterface $manager)
-    {
+    public function __construct(
+        private EntityManagerInterface $manager,
+        private ConfigService $configService
+    ) {
     }
 
     public function load(?People $company): array
     {
         $values = array_fill_keys(self::KEYS, null);
-        if ($company === null || !class_exists(Config::class)) {
+        if ($company === null) {
             return $values;
         }
 
-        $configs = $this->manager->getRepository(Config::class)->findBy(['people' => $company]);
-        foreach ($configs as $config) {
-            $key = $this->configKey($config);
-            if ($key === '' || !array_key_exists($key, $values)) {
-                continue;
-            }
-            $values[$key] = $this->configValue($config);
+        foreach (self::KEYS as $key) {
+            $values[$key] = $this->configService->getConfig($company, $key);
         }
 
         $values['nextNumber'] = ((int) ($values['receita-federal-cte-last-number'] ?? 0)) + 1;
@@ -49,38 +47,12 @@ class CteFiscalConfig
 
     public function incrementLastNumber(?People $company, int $authorizedNumber): void
     {
-        if ($company === null || !class_exists(Config::class)) {
+        if ($company === null) {
             return;
         }
 
-        $repo = $this->manager->getRepository(Config::class);
-        $config = $repo->findOneBy([
-            'people' => $company,
-            'configKey' => 'receita-federal-cte-last-number',
-        ]);
-        if ($config === null) {
-            foreach ($repo->findBy(['people' => $company]) as $candidate) {
-                if ($this->configKey($candidate) === 'receita-federal-cte-last-number') {
-                    $config = $candidate;
-                    break;
-                }
-            }
-        }
-        if ($config === null) {
-            $config = new Config();
-            if (method_exists($config, 'setPeople')) {
-                $config->setPeople($company);
-            }
-            if (method_exists($config, 'setConfigKey')) {
-                $config->setConfigKey('receita-federal-cte-last-number');
-            }
-            $this->manager->persist($config);
-        }
-        if (method_exists($config, 'setValue')) {
-            $config->setValue((string) $authorizedNumber);
-        } elseif (method_exists($config, 'setConfigValue')) {
-            $config->setConfigValue((string) $authorizedNumber);
-        }
+        $module = $this->configService->discoveryModule('config');
+        $this->configService->addConfig($company, 'receita-federal-cte-last-number', (string) $authorizedNumber, $module, 'private');
     }
 
     private function resolveCertificate(mixed $raw): ?string
@@ -104,25 +76,5 @@ class CteFiscalConfig
         return $file->getContent(true);
     }
 
-    private function configKey(object $config): string
-    {
-        foreach (['getConfigKey', 'getKey', 'getName'] as $method) {
-            if (method_exists($config, $method)) {
-                return (string) $config->{$method}();
-            }
-        }
 
-        return '';
-    }
-
-    private function configValue(object $config): mixed
-    {
-        foreach (['getValue', 'getConfigValue', 'getContent'] as $method) {
-            if (method_exists($config, $method)) {
-                return $config->{$method}();
-            }
-        }
-
-        return null;
-    }
 }
