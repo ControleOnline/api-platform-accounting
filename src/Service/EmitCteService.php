@@ -53,6 +53,16 @@ class EmitCteService
             throw new BadRequestHttpException('Uma ou mais NFs já estão em emissão ou emitidas.');
         }
 
+        foreach ($invoices as $invoice) {
+            if ($invoice->getCte() instanceof InvoiceTax) {
+                throw new BadRequestHttpException(sprintf(
+                    'NF %s já possui CT-e vinculado.',
+                    $invoice->getInvoiceNumber()
+                ));
+            }
+        }
+
+        // Build payload and create integration
         $payload = json_encode([
             'invoiceTaxIds' => $ids,
             'cfop' => $cfop,
@@ -61,6 +71,14 @@ class EmitCteService
 
         $user = $this->tokenStorage->getToken()?->getUser();
         $integration = $this->integrationService->addIntegration($payload, 'CteEmission', null, $user);
+
+        // Bind NFs to the task immediately so /invoice_taxes/without-cte excludes them
+        // while emission is still open/pending/processing (cte_id may still be null).
+        foreach ($invoices as $invoice) {
+            $invoice->setIntegration($integration);
+            $this->manager->persist($invoice);
+        }
+        $this->manager->flush();
 
         return $integration;
     }
