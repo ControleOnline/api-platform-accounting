@@ -30,6 +30,41 @@ class CteEmissionProcessor
         return $processed;
     }
 
+    /**
+     * Integração criada por EmitCteService (queueName=CteEmission, body JSON).
+     * Usado pelo cron tenant:integration:start via CteEmissionService::integrate.
+     */
+    public function processMessengerIntegration(Integration $integration): InvoiceTax
+    {
+        $body = json_decode((string) $integration->getBody(), true) ?: [];
+        $ids = array_values(array_unique(array_filter(array_map(
+            'intval',
+            $body['invoiceTaxIds'] ?? $body['selected'] ?? []
+        ))));
+        $cfop = (string) ($body['cfop'] ?? '');
+        $extra = is_array($body['extra'] ?? null) ? $body['extra'] : [];
+
+        if ($ids === [] || $cfop === '') {
+            throw new \RuntimeException('Payload da integração CteEmission incompleto (ids/CFOP).');
+        }
+
+        if (method_exists($integration, 'setPayload')) {
+            $integration->setPayload(json_encode([
+                'invoiceTaxIds' => $ids,
+                'cfop' => $cfop,
+                'extra' => $extra,
+            ], JSON_UNESCAPED_UNICODE));
+        }
+        if (method_exists($integration, 'setCfop') && $cfop !== '') {
+            $integration->setCfop($cfop);
+        }
+        if (method_exists($integration, 'setTaskType')) {
+            $integration->setTaskType('cte_emission');
+        }
+
+        return $this->processTask($integration);
+    }
+
     public function processTask(Integration $task): InvoiceTax
     {
         $processing = $this->statusService->discoveryStatus('processing', 'processing', 'invoice_task');
@@ -38,12 +73,19 @@ class CteEmissionProcessor
         $this->manager->flush();
 
         try {
-            $payload = json_decode((string) $task->getPayload(), true) ?: [];
+            $payloadRaw = '';
+            if (method_exists($task, 'getPayload')) {
+                $payloadRaw = (string) $task->getPayload();
+            }
+            if ($payloadRaw === '' && method_exists($task, 'getBody')) {
+                $payloadRaw = (string) $task->getBody();
+            }
+            $payload = json_decode($payloadRaw, true) ?: [];
             $ids = array_values(array_unique(array_filter(array_map(
                 'intval',
-                $payload['invoiceTaxIds'] ?? []
+                $payload['invoiceTaxIds'] ?? $payload['selected'] ?? []
             ))));
-            $cfop = (string) ($payload['cfop'] ?? $task->getCfop() ?? '');
+            $cfop = (string) ($payload['cfop'] ?? (method_exists($task, 'getCfop') ? ($task->getCfop() ?? '') : '') ?: '');
             $extra = is_array($payload['extra'] ?? null) ? $payload['extra'] : [];
             if ($ids === [] || $cfop === '') {
                 throw new \RuntimeException('Payload da invoice_task incompleto (ids/CFOP).');
@@ -54,11 +96,14 @@ class CteEmissionProcessor
                 throw new \RuntimeException('NFs da tarefa não encontradas.');
             }
 
-            $company = $task->getCompany() ?: ($invoices[0]->getCompany() ?: $invoices[0]->getIssuer());
-            $fiscal = $this->fiscalConfig->load($company instanceof People ? $company : null);
-            if (empty($fiscal['receita-federal-cte-enabled']) && ($fiscal['receita-federal-cte-enabled'] !== '1' && $fiscal['receita-federal-cte-enabled'] !== 1 && $fiscal['receita-federal-cte-enabled'] !== true)) {
-                // enabled flag is advisory; certificate is the hard requirement
+            $company = null;
+            if (method_exists($task, 'getCompany')) {
+                $company = $task->getCompany();
             }
+            if (!$company instanceof People) {
+                $company = $invoices[0]->getCompany() ?: $invoices[0]->getIssuer();
+            }
+            $fiscal = $this->fiscalConfig->load($company instanceof People ? $company : null);
             if (empty($fiscal['certificateBinary']) || empty($fiscal['receita-federal-certificate-password'])) {
                 throw new \RuntimeException('Configuração fiscal incompleta: certificado e senha são obrigatórios.');
             }
@@ -81,10 +126,19 @@ class CteEmissionProcessor
         } catch (\Throwable $exception) {
             $error = $this->statusService->discoveryStatus('error', 'error', 'invoice_task');
             $task->setStatus($error);
-            $task->setPayload(json_encode(array_merge(
-                json_decode((string) $task->getPayload(), true) ?: [],
-                ['error' => $exception->getMessage()]
-            ), JSON_UNESCAPED_UNICODE));
+            $errPayload = [];
+            if (method_exists($task, 'getPayload')) {
+                $errPayload = json_decode((string) $task->getPayload(), true) ?: [];
+            }
+            if ($errPayload === [] && method_exists($task, 'getBody')) {
+                $errPayload = json_decode((string) $task->getBody(), true) ?: [];
+            }
+            $errPayload['error'] = $exception->getMessage();
+            if (method_exists($task, 'setPayload')) {
+                $task->setPayload(json_encode($errPayload, JSON_UNESCAPED_UNICODE));
+            } elseif (method_exists($task, 'setBody')) {
+                $task->setBody(json_encode($errPayload, JSON_UNESCAPED_UNICODE));
+            }
             $this->manager->persist($task);
             $this->manager->flush();
             throw $exception;
@@ -150,8 +204,8 @@ class CteEmissionProcessor
         $qb = $this->manager->createQueryBuilder()
             ->select('integration')
             ->from(Integration::class, 'integration')
-            ->andWhere('integration.queueName = :queue')
-            ->setParameter('queue', 'cte_emission')
+            ->andWhere('integration.queueName IN (:queues)')
+            ->setParameter('queues', ['cte_emission', 'CteEmission'])
             ->setMaxResults($limit)
             ->orderBy('integration.id', 'ASC');
         if ($open) {
@@ -160,13 +214,8 @@ class CteEmissionProcessor
         $items = $qb->getQuery()->getResult();
         $count = 0;
         foreach ($items as $integration) {
-            $body = json_decode((string) $integration->getBody(), true) ?: [];
-            $taskId = (int) ($body['invoiceTaskId'] ?? 0);
-            $task = $taskId ? $this->manager->getRepository(Integration::class)->find($taskId) : null;
             try {
-                if ($task instanceof Integration) {
-                    $this->processTask($task);
-                }
+                $this->processMessengerIntegration($integration);
                 $closed = $this->statusService->discoveryStatus('closed', 'closed', 'integration');
                 $integration->setStatus($closed);
                 $this->manager->persist($integration);
