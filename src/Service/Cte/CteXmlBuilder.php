@@ -63,6 +63,7 @@ class CteXmlBuilder
         $munEnv = htmlspecialchars((string) ($extra['xMunEnv'] ?? $this->cityName($first->getAddress())), ENT_XML1);
         $ufEnv = htmlspecialchars((string) ($extra['UFEnv'] ?? $this->uf($first->getAddress())), ENT_XML1);
         $cMunEnv = htmlspecialchars((string) ($fiscal['receita-federal-ibge-code'] ?? '3550308'), ENT_XML1);
+        $rntrc = preg_replace('/\D+/', '', (string) ($extra['rntrc'] ?? $fiscal['rntrc'] ?? $fiscal['receita-federal-cte-rntrc'] ?? '00000000')) ?: '00000000';
 
         return '<?xml version="1.0" encoding="UTF-8"?>'
             . '<CTe xmlns="http://www.portalfiscal.inf.br/cte">'
@@ -85,7 +86,7 @@ class CteXmlBuilder
             . sprintf('<vPrest><vTPrest>%s</vTPrest><vRec>%s</vRec></vPrest>', $vTPrest, $vTPrest)
             . '<imp><ICMS><ICMS00><CST>00</CST><vBC>0.00</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS></ICMS00></ICMS></imp>'
             . '<infCTeNorm><infCarga><vCarga>' . $vTPrest . '</vCarga><proPred>MERCADORIA</proPred></infCarga>'
-            . '<infDoc>' . $infNFe . '</infDoc></infCTeNorm>'
+            . '<infDoc>' . $infNFe . '</infDoc><infModal version="4.00"><rodo><RNTRC>' . htmlspecialchars($rntrc, ENT_XML1) . '</RNTRC></rodo></infModal></infCTeNorm>'
             . '</infCte></CTe>';
     }
 
