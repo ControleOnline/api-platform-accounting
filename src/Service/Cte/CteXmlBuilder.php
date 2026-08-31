@@ -126,7 +126,8 @@ class CteXmlBuilder
         $first = $invoices[0];
         $company = $first->getCompany() ?: $first->getIssuer();
         $cnpj = preg_replace('/\D+/', '', $this->peopleDocument($company) ?: '00000000000000');
-        $cUF = substr((string) ($fiscal['receita-federal-ibge-code'] ?? '3550308'), 0, 2);
+        $ibgeCode = $this->ibgeCode($fiscal);
+        $cUF = substr($ibgeCode, 0, 2);
         $mod = '57';
         $serie = (int) ($fiscal['receita-federal-cte-serie'] ?? 1);
         $nCT = (int) ($fiscal['nextNumber'] ?? 1);
@@ -140,7 +141,8 @@ class CteXmlBuilder
     {
         $first = $invoices[0];
         $ide = new \stdClass();
-        $ide->cUF = substr((string) ($fiscal['receita-federal-ibge-code'] ?? '3550308'), 0, 2);
+        $ibgeCode = $this->ibgeCode($fiscal);
+        $ide->cUF = substr($ibgeCode, 0, 2);
         $ide->cCT = str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT);
         $ide->CFOP = $cfop;
         $ide->natOp = $extra['natureza'] ?? 'PRESTACAO DE SERVICO DE TRANSPORTE';
@@ -155,7 +157,7 @@ class CteXmlBuilder
         $ide->tpCTe = '0';
         $ide->procEmi = '0';
         $ide->verProc = 'controleonline-1.0';
-        $ide->cMunEnv = (string) ($fiscal['receita-federal-ibge-code'] ?? '3550308');
+        $ide->cMunEnv = $ibgeCode;
         $ide->xMunEnv = $this->cityName($first->getAddress());
         $ide->UFEnv = $this->uf($first->getAddress());
         $ide->modal = '01';
@@ -186,6 +188,12 @@ class CteXmlBuilder
         $emit->xFant = $company?->getAlias() ?: $emit->xNome;
         $emit->CRT = (string) ($fiscal['receita-federal-tax-regime'] ?? $fiscal['crt'] ?? '1');
         return $emit;
+    }
+
+    private function ibgeCode(array $fiscal): string
+    {
+        $code = preg_replace('/\D+/', '', (string) ($fiscal['receita-federal-ibge-code'] ?? ''));
+        return $code !== '' ? $code : '3550308';
     }
 
     private function buildParty(?People $people, ?Address $address, array $fiscal): \stdClass
