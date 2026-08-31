@@ -58,7 +58,7 @@ use Symfony\Component\Serializer\Attribute\Groups;
     normalizationContext: ['groups' => ['invoice_tax:read']],
     denormalizationContext: ['groups' => ['invoice_tax:write']]
 )]
-#[ApiFilter(filterClass: SearchFilter::class, properties: ['invoiceModel' => 'exact', 'invoice_model' => 'exact', 'status' => 'exact', 'status.realStatus' => 'exact', 'invoiceNumber' => 'exact'])]
+#[ApiFilter(filterClass: SearchFilter::class, properties: ['invoiceModel' => 'exact', 'invoice_model' => 'exact', 'status' => 'exact', 'status.realStatus' => 'exact', 'invoiceNumber' => 'exact', 'invoiceKey' => 'exact', 'invoice_key' => 'exact', 'company' => 'exact', 'client' => 'exact', 'provider' => 'exact', 'carrier' => 'exact', 'id' => 'exact'])]
 #[ORM\Table(name: 'invoice_tax')]
 #[ORM\UniqueConstraint(name: 'uniq_invoice_tax_invoice_key', columns: ['invoice_key'])]
 #[ORM\Entity]
