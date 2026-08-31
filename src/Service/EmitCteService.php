@@ -56,7 +56,7 @@ class EmitCteService
         ], JSON_UNESCAPED_UNICODE);
 
         $user = $this->tokenStorage->getToken()?->getUser();
-        $integration = $this->integrationService->addIntegration($payload, 'cte_emission', null, $user);
+        $integration = $this->integrationService->addIntegration($payload, 'CteEmission', null, $user);
 
         return $integration;
     }
