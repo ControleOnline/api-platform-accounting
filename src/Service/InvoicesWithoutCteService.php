@@ -6,6 +6,7 @@ use ControleOnline\Entity\Address;
 use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Entity\People;
 use Doctrine\DBAL\ArrayParameterType;
+use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
 
 class InvoicesWithoutCteService
@@ -151,7 +152,7 @@ class InvoicesWithoutCteService
                  )
                  ORDER BY d.id DESC',
                 [$ids, '%RNTRC%', '%ANTT%'],
-                [ArrayParameterType::INTEGER, \PDO::PARAM_STR, \PDO::PARAM_STR]
+                [ArrayParameterType::INTEGER, ParameterType::STRING, ParameterType::STRING]
             );
             if (is_string($document) && trim($document) !== '') {
                 return trim($document);
@@ -166,7 +167,7 @@ class InvoicesWithoutCteService
                  WHERE c.people_id IN (?) AND c.config_key = ?
                  ORDER BY c.id DESC',
                 [$ids, 'receita-federal-cte-rntrc'],
-                [ArrayParameterType::INTEGER, \PDO::PARAM_STR]
+                [ArrayParameterType::INTEGER, ParameterType::STRING]
             );
             if (is_string($config) && trim($config) !== '') {
                 return trim($config);
@@ -285,7 +286,7 @@ class InvoicesWithoutCteService
         if ($issuerId) {
             $sql .= ' AND it.issuer_id = ?';
             $params[] = $issuerId;
-            $types[] = \PDO::PARAM_INT;
+            $types[] = ParameterType::INTEGER;
         }
         if ($ids) {
             $sql .= ' AND it.id IN (?)';
