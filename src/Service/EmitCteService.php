@@ -144,7 +144,8 @@ class EmitCteService
 
         $queueStatus = $this->statusService->discoveryStatus('open', 'open', 'integration');
         $integration = new Integration();
-        $integration->setQueueName('cte_emission');
+        // queueName deve casar com CteEmissionService (cron tenant:integration:start)
+        $integration->setQueueName('CteEmission');
         $integration->setStatus($queueStatus);
         $integration->setBody(json_encode([
             'invoiceTaskId' => $task->getId(),
