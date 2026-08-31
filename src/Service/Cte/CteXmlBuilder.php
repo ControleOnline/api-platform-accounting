@@ -105,7 +105,20 @@ class CteXmlBuilder
         $make->tagrodo($rodo);
         $make->taginfRespTec($this->buildInfRespTec($fiscal));
 
-        return $make->getXML();
+        try {
+            return $make->getXML();
+        } catch (\RuntimeException $exception) {
+            $errors = $make->getErrors();
+            if ($errors !== []) {
+                throw new \RuntimeException(
+                    $exception->getMessage() . ' ' . json_encode($errors, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    0,
+                    $exception
+                );
+            }
+
+            throw $exception;
+        }
     }
 
     private function buildChave(array $invoices, array $fiscal, string $cfop): string
