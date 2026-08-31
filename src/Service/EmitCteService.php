@@ -39,6 +39,15 @@ class EmitCteService
 
         $this->assertTenantCanEmit($invoices);
 
+        foreach ($invoices as $invoice) {
+            if ($invoice->getCte() instanceof InvoiceTax) {
+                throw new BadRequestHttpException(sprintf(
+                    'NF %s já possui CT-e vinculado.',
+                    $invoice->getInvoiceNumber()
+                ));
+            }
+        }
+
         $busy = $this->manager->getConnection()->fetchFirstColumn(
             'SELECT id FROM invoice_tax WHERE id IN (?) AND invoice_task_id IS NOT NULL',
             [$ids],
@@ -73,11 +82,22 @@ class EmitCteService
         $this->manager->persist($task);
         $this->manager->flush();
 
-        $this->manager->getConnection()->executeStatement(
+        // Bind immediately so /invoice_taxes/without-cte excludes NFs while task is still open/pending.
+        $updated = $this->manager->getConnection()->executeStatement(
             'UPDATE invoice_tax SET invoice_task_id = ? WHERE id IN (?) AND invoice_task_id IS NULL',
             [$task->getId(), $ids],
             [ParameterType::INTEGER, ArrayParameterType::INTEGER]
         );
+        if ((int) $updated < count($ids)) {
+            // ORM fallback if column mapping differs or concurrent race
+            foreach ($invoices as $invoice) {
+                if (method_exists($invoice, 'setIntegration')) {
+                    $invoice->setIntegration($task);
+                }
+                $this->manager->persist($invoice);
+            }
+            $this->manager->flush();
+        }
 
         $this->enqueue($task, $ids, $cfop, $extra);
         $this->manager->flush();
