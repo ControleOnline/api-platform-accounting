@@ -78,8 +78,7 @@ class CteXmlBuilder
             . sprintf('<cMunFim>%s</cMunFim><xMunFim>%s</xMunFim><UFFim>%s</UFFim>', $cMunEnv, $munEnv, $ufEnv)
             . '<retira>1</retira><indIEToma>1</indIEToma>'
             . '</ide>'
-            . '<toma3><toma>3</toma></toma3>'
-            . $enderToma
+            . '<compl><xObs>CTe gerado via ControleOnline</xObs></compl>'
             . $emit
             . $rem
             . $dest
