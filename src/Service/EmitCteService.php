@@ -5,8 +5,11 @@ namespace ControleOnline\Service;
 use ControleOnline\Entity\Integration;
 use ControleOnline\Entity\InvoiceTask;
 use ControleOnline\Entity\InvoiceTax;
+use ControleOnline\Entity\People;
 use Doctrine\DBAL\ArrayParameterType;
+use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 
@@ -33,6 +36,8 @@ class EmitCteService
         if (count($invoices) !== count($ids)) {
             throw new BadRequestHttpException('Uma ou mais NFs não foram encontradas.');
         }
+
+        $this->assertTenantCanEmit($invoices);
 
         $busy = $this->manager->getConnection()->fetchFirstColumn(
             'SELECT id FROM invoice_tax WHERE id IN (?) AND invoice_task_id IS NOT NULL',
@@ -71,13 +76,54 @@ class EmitCteService
         $this->manager->getConnection()->executeStatement(
             'UPDATE invoice_tax SET invoice_task_id = ? WHERE id IN (?) AND invoice_task_id IS NULL',
             [$task->getId(), $ids],
-            [\PDO::PARAM_INT, ArrayParameterType::INTEGER]
+            [ParameterType::INTEGER, ArrayParameterType::INTEGER]
         );
 
         $this->enqueue($task, $ids, $cfop, $extra);
         $this->manager->flush();
 
         return $task;
+    }
+
+    private function assertTenantCanEmit(array $invoices): void
+    {
+        $user = $this->tokenStorage->getToken()?->getUser();
+        if (!is_object($user)) {
+            throw new AccessDeniedHttpException('Authentication required.');
+        }
+        $roles = method_exists($user, 'getRoles') ? (array) $user->getRoles() : [];
+        if (in_array('ROLE_SUPER', $roles, true)) {
+            return;
+        }
+
+        $people = method_exists($user, 'getPeople') ? $user->getPeople() : null;
+        $peopleId = $people instanceof People ? (int) $people->getId() : 0;
+        $allowed = $peopleId > 0 ? [$peopleId] : [];
+        if ($peopleId > 0) {
+            try {
+                $linked = $this->manager->getConnection()->fetchFirstColumn(
+                    'SELECT company_id FROM people_link WHERE people_id = ? AND (enabled = 1 OR enabled IS NULL)',
+                    [$peopleId],
+                    [ParameterType::INTEGER]
+                );
+                foreach ($linked ?: [] as $companyId) {
+                    $allowed[] = (int) $companyId;
+                }
+            } catch (\Throwable) {
+            }
+        }
+        $allowed = array_values(array_unique(array_filter($allowed)));
+        if ($allowed === []) {
+            throw new AccessDeniedHttpException('Sem permissão para emitir CT-e.');
+        }
+
+        foreach ($invoices as $invoice) {
+            $companyId = (int) ($invoice->getCompany()?->getId() ?? 0);
+            $issuerId = (int) ($invoice->getIssuer()?->getId() ?? 0);
+            if (!in_array($companyId, $allowed, true) && !in_array($issuerId, $allowed, true)) {
+                throw new AccessDeniedHttpException('NF fora do escopo da empresa autenticada.');
+            }
+        }
     }
 
     private function enqueue(InvoiceTask $task, array $ids, string $cfop, array $extra): void
