@@ -165,9 +165,13 @@ class CteEmissionProcessor
             $taskId = (int) ($body['invoiceTaskId'] ?? 0);
             $task = $taskId ? $this->manager->getRepository(InvoiceTask::class)->find($taskId) : null;
             try {
-                if ($task instanceof InvoiceTask) {
-                    $this->processTask($task);
+                if (!$task instanceof InvoiceTask) {
+                    throw new \RuntimeException(sprintf(
+                        'Integration cte_emission #%s sem invoiceTaskId válido.',
+                        (string) $integration->getId()
+                    ));
                 }
+                $this->processTask($task);
                 $closed = $this->statusService->discoveryStatus('closed', 'closed', 'integration');
                 $integration->setStatus($closed);
                 $this->manager->persist($integration);
