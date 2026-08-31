@@ -21,9 +21,10 @@ class CteXmlBuilder
 
         // Use MakeCTe from nfephp/sped-cte for correct schema order and required fields
         $make = new MakeCTe();
-        $make->setChave($this->buildChave($invoices, $fiscal, $cfop));
+        $chave = $this->buildChave($invoices, $fiscal, $cfop);
         // infCte
         $infCte = new \stdClass();
+        $infCte->Id = $chave;
         $infCte->versao = '4.00';
         $make->taginfCTe($infCte);
 
