@@ -85,7 +85,7 @@ class CteXmlBuilder
             . $dest
             . sprintf('<vPrest><vTPrest>%s</vTPrest><vRec>%s</vRec></vPrest>', $vTPrest, $vTPrest)
             . '<imp><ICMS><ICMS00><CST>00</CST><vBC>0.00</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS></ICMS00></ICMS></imp>'
-            . '<infCTeNorm><infCarga><vCarga>' . $vTPrest . '</vCarga><proPred>MERCADORIA</proPred></infCarga>'
+            . '<infCTeNorm><infCarga><vCarga>' . $vTPrest . '</vCarga><proPred>MERCADORIA</proPred><infQ><qCarga>1</qCarga></infQ></infCarga>'
             . '<infDoc>' . $infNFe . '</infDoc><infModal versaoModal="4.00"><rodo><RNTRC>' . htmlspecialchars($rntrc, ENT_XML1) . '</RNTRC></rodo></infModal></infCTeNorm>'
             . '</infCte></CTe>';
     }
