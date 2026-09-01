@@ -4,6 +4,7 @@ namespace ControleOnline\Tests\Service;
 
 use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Service\InvoicesWithoutCteService;
+use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 
@@ -39,6 +40,24 @@ final class InvoicesWithoutCteServiceTest extends TestCase
         self::assertContains('tomador', $data['cteReadonlyFields']);
         self::assertContains('valorFrete', $data['cteReadonlyFields']);
         self::assertContains('valorReceber', $data['cteReadonlyFields']);
+    }
+
+    public function testListDoesNotReadAnUndefinedXmlVariable(): void
+    {
+        $connection = $this->createMock(Connection::class);
+        $connection->method('fetchFirstColumn')->willReturn([
+            'id', 'invoice_number', 'invoice_key', 'invoice_model', 'invoice_total',
+            'cte_id', 'issuer_id', 'company_id', 'client_id', 'provider_id', 'carrier_id', 'address_id',
+        ]);
+        $connection->method('fetchAllAssociative')->willReturn([]);
+
+        $entityManager = $this->createMock(EntityManagerInterface::class);
+        $entityManager->method('getConnection')->willReturn($connection);
+
+        $result = (new InvoicesWithoutCteService($entityManager))->list();
+
+        self::assertSame([], $result['member']);
+        self::assertSame(0, $result['totalItems']);
     }
 
     private function setId(object $entity, int $id): void
