@@ -13,6 +13,7 @@ class CteFiscalConfig
     public const KEYS = [
         'receita-federal-certificate-file',
         'receita-federal-certificate-password',
+        'receita-federal-certificate-document',
         'receita-federal-environment',
         'receita-federal-tax-regime',
         'receita-federal-ibge-code',
@@ -46,7 +47,11 @@ class CteFiscalConfig
             $values['certificateBinary'],
             $values['receita-federal-certificate-password'] ?? null
         );
-        $values['certificateDocument'] = $certificateIssuer['document'];
+        $configuredDocument = preg_replace('/\D+/', '', (string) ($values['receita-federal-certificate-document'] ?? ''));
+        $values['certificateDocument'] = $configuredDocument !== ''
+            && substr($configuredDocument, 0, 8) === substr((string) $certificateIssuer['document'], 0, 8)
+                ? $configuredDocument
+                : $certificateIssuer['document'];
         $values['certificateName'] = $certificateIssuer['name'];
 
         return $values;
