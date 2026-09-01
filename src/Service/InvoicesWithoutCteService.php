@@ -37,8 +37,6 @@ class InvoicesWithoutCteService
             0.0
         );
 
-        $cteDefaults = $this->cteDefaults(is_string($xml) ? $xml : null);
-
         return [
             'member' => $items,
             'hydra:member' => $items,
