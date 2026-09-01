@@ -2,7 +2,7 @@
 
 namespace ControleOnline\Tests\Service\Cte;
 
-use ControleOnline\Entity\InvoiceTask;
+use ControleOnline\Entity\Integration;
 use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Entity\People;
 use ControleOnline\Entity\Status;
@@ -26,14 +26,21 @@ final class CteEmissionProcessorTest extends TestCase
         $this->setId($nfB, 11);
 
         $company = new People();
-        $task = new InvoiceTask();
-        $task->setTaskType('cte_emission');
-        $task->setCfop('5353');
-        $task->setCompany($company);
-        $task->setPayload(json_encode([
+        $nfA->setCompany($company);
+        $nfB->setCompany($company);
+        $task = new Integration();
+        $task->setQueueName('CteEmission');
+        $task->setBody(json_encode([
             'invoiceTaxIds' => [10, 11],
-            'cfop' => '5353',
-            'extra' => [],
+            'cfop' => '5932',
+            'extra' => [
+                'modal' => '01',
+                'tipoServico' => '0',
+                'tipoCte' => '0',
+                'tomador' => '3',
+                'valorFrete' => '30.00',
+                'valorReceber' => '30.00',
+            ],
         ]));
 
         $statuses = [];
@@ -66,6 +73,7 @@ final class CteEmissionProcessorTest extends TestCase
             'receita-federal-cte-serie' => '1',
             'receita-federal-environment' => '2',
             'receita-federal-ibge-code' => '3550308',
+            'receita-federal-cte-rntrc' => '12345678',
             'nextNumber' => 7,
         ]);
         $fiscal->expects(self::once())->method('incrementLastNumber')->with($company, 7);
@@ -74,8 +82,16 @@ final class CteEmissionProcessorTest extends TestCase
             'receita-federal-cte-serie' => '1',
             'receita-federal-environment' => '2',
             'receita-federal-ibge-code' => '3550308',
+            'receita-federal-cte-rntrc' => '12345678',
             'nextNumber' => 7,
-        ], '5353');
+        ], '5932', [
+            'modal' => '01',
+            'tipoServico' => '0',
+            'tipoCte' => '0',
+            'tomador' => '3',
+            'valorFrete' => '30.00',
+            'valorReceber' => '30.00',
+        ]);
 
         $sefaz = $this->createMock(CteSefazClient::class);
         $sefaz->method('signAndSend')->willReturn([
@@ -108,9 +124,9 @@ final class CteEmissionProcessorTest extends TestCase
 
     public function testProcessTaskMarksErrorWhenCertificateMissing(): void
     {
-        $task = new InvoiceTask();
-        $task->setTaskType('cte_emission');
-        $task->setPayload(json_encode(['invoiceTaxIds' => [1, 2], 'cfop' => '5353']));
+        $task = new Integration();
+        $task->setQueueName('CteEmission');
+        $task->setBody(json_encode(['invoiceTaxIds' => [1, 2], 'cfop' => '5353']));
 
         $statusService = $this->createMock(StatusService::class);
         $statusService->method('discoveryStatus')->willReturnCallback(function (string $real) {

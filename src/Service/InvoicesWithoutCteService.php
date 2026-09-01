@@ -21,7 +21,7 @@ class InvoicesWithoutCteService
     public function list(?int $issuerId = null, array $ids = []): array
     {
         try {
-            $items = $this->listViaSql($issuerId, $ids);
+            $items = $ids ? $this->listViaDoctrine($issuerId, $ids) : $this->listViaSql($issuerId, $ids);
         } catch (\Throwable) {
             $items = $this->listViaDoctrine($issuerId, $ids);
         }
@@ -36,6 +36,8 @@ class InvoicesWithoutCteService
             static fn(float $carry, array $item): float => $carry + (float) ($item['weight'] ?? 0),
             0.0
         );
+
+        $cteDefaults = $this->cteDefaults(is_string($xml) ? $xml : null);
 
         return [
             'member' => $items,
@@ -100,6 +102,7 @@ class InvoicesWithoutCteService
         } catch (\Throwable) {
             $xml = null;
         }
+        $cteDefaults = $this->cteDefaults(is_string($xml) ? $xml : null);
 
         return [
             '@id' => '/invoice_taxes/' . $invoice->getId(),
@@ -110,6 +113,11 @@ class InvoicesWithoutCteService
             'invoiceTotal' => $invoice->getInvoiceTotal() === null ? 0 : (float) $invoice->getInvoiceTotal(),
             'weight' => $this->extractWeight(is_string($xml) ? $xml : null),
             'rntrc' => $this->resolveRntrc($carrier, $company, $issuer),
+            'cteDefaults' => $cteDefaults,
+            'cteReadonlyFields' => array_keys(array_filter(
+                $cteDefaults,
+                static fn(mixed $value): bool => $value !== null && $value !== ''
+            )),
             'cteId' => $invoice->getCte()?->getId(),
             'companyId' => $this->peopleId($company),
             'companyName' => $this->peopleName($company, 'Empresa não informada'),
@@ -140,24 +148,6 @@ class InvoicesWithoutCteService
         $ids = array_values(array_unique(array_filter($ids)));
         if (!$ids) {
             return '';
-        }
-
-        try {
-            $document = $this->entityManager->getConnection()->fetchOne(
-                'SELECT d.document
-                 FROM document d
-                 INNER JOIN document_type t ON t.id = d.document_type_id
-                 WHERE d.people_id IN (?) AND (
-                    UPPER(t.document_type) LIKE ? OR UPPER(t.document_type) LIKE ?
-                 )
-                 ORDER BY d.id DESC',
-                [$ids, '%RNTRC%', '%ANTT%'],
-                [ArrayParameterType::INTEGER, ParameterType::STRING, ParameterType::STRING]
-            );
-            if (is_string($document) && trim($document) !== '') {
-                return trim($document);
-            }
-        } catch (\Throwable) {
         }
 
         try {
@@ -192,6 +182,61 @@ class InvoicesWithoutCteService
         }
 
         return round($total, 3);
+    }
+
+    private function cteDefaults(?string $xml): array
+    {
+        return [
+            'cfop' => $this->inferCteCfop($xml),
+            'tomador' => $this->inferTomador($xml),
+            'valorFrete' => $this->inferMoney($xml, 'vFrete'),
+            'valorReceber' => $this->inferMoney($xml, 'vFrete'),
+        ];
+    }
+
+    private function inferCteCfop(?string $xml): ?string
+    {
+        if (!$xml || !preg_match_all('/<CFOP>(\d{4})<\/CFOP>/i', $xml, $matches)) {
+            return null;
+        }
+
+        $directions = array_values(array_unique(array_map(
+            static fn(string $cfop): string => substr($cfop, 0, 1),
+            $matches[1] ?? []
+        )));
+
+        return match ($directions) {
+            ['5'] => '5932',
+            ['6'] => '6932',
+            default => null,
+        };
+    }
+
+    private function inferTomador(?string $xml): ?string
+    {
+        if (!$xml || !preg_match('/<modFrete>(\d)<\/modFrete>/i', $xml, $match)) {
+            return null;
+        }
+
+        return match ($match[1]) {
+            '0' => '0',
+            '1' => '3',
+            default => null,
+        };
+    }
+
+    private function inferMoney(?string $xml, string $tag): ?string
+    {
+        if (!$xml || !preg_match(sprintf('/<%1$s>([^<]+)<\/%1$s>/i', preg_quote($tag, '/')), $xml, $match)) {
+            return null;
+        }
+
+        $value = (float) str_replace(',', '.', trim((string) $match[1]));
+        if ($value <= 0) {
+            return null;
+        }
+
+        return number_format($value, 2, '.', '');
     }
 
     private function peopleId(?People $people): ?int
@@ -339,6 +384,8 @@ class InvoicesWithoutCteService
             'invoiceTotal' => $row['invoice_total'] === null ? 0 : (float) $row['invoice_total'],
             'weight' => 0.0,
             'rntrc' => '',
+            'cteDefaults' => [],
+            'cteReadonlyFields' => [],
             'cteId' => $row['cte_id'] !== null ? (int) $row['cte_id'] : null,
             'companyId' => $companyId,
             'companyName' => $companyName,
