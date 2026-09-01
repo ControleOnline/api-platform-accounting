@@ -9,9 +9,13 @@ use ApiPlatform\Metadata\Post;
 use ControleOnline\Controller\DownloadOrderNFAction;
 use ControleOnline\Controller\InvoiceTaxUploadController;
 use ControleOnline\Controller\ListInvoicesWithoutCteAction;
+use ControleOnline\Controller\ListOrdersWithoutFiscalDocumentAction;
+use ControleOnline\Controller\EmitCteAction;
 use ControleOnline\Entity\Address;
 use ControleOnline\Entity\File;
 use ControleOnline\Entity\People;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use ApiPlatform\Metadata\ApiFilter;
 use ControleOnline\Entity\Status;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
@@ -27,6 +31,14 @@ use Symfony\Component\Serializer\Attribute\Groups;
             output: false,
             security: 'is_granted(\'ROLE_HUMAN\')'
         ),
+        new GetCollection(
+            name: 'orders_without_fiscal_document',
+            uriTemplate: '/orders/without-fiscal-document',
+            controller: ListOrdersWithoutFiscalDocumentAction::class,
+            read: false,
+            output: false,
+            security: 'is_granted(\'ROLE_HUMAN\')'
+        ),
         new GetCollection(security: 'is_granted(\'ROLE_HUMAN\')'),
         new Get(
             security: 'is_granted(\'ROLE_HUMAN\')',
@@ -37,6 +49,12 @@ use Symfony\Component\Serializer\Attribute\Groups;
             controller: InvoiceTaxUploadController::class,
             deserialize: false,
             security: 'is_granted(\'ROLE_HUMAN\')'
+        ),
+        new Post(
+            uriTemplate: '/invoice_tasks/emit-cte',
+            controller: EmitCteAction::class,
+            deserialize: false,
+            security: "is_granted('ROLE_HUMAN')"
         ),
         new Get(
             security: 'is_granted(\'PUBLIC_ACCESS\')',
@@ -49,6 +67,7 @@ use Symfony\Component\Serializer\Attribute\Groups;
     normalizationContext: ['groups' => ['invoice_tax:read']],
     denormalizationContext: ['groups' => ['invoice_tax:write']]
 )]
+#[ApiFilter(filterClass: SearchFilter::class, properties: ['invoiceModel' => 'exact', 'invoice_model' => 'exact', 'fiscalType' => 'exact', 'fiscal_type' => 'exact', 'fiscalSeries' => 'exact', 'fiscal_series' => 'exact', 'fiscalNumber' => 'exact', 'fiscal_number' => 'exact', 'fiscalProtocol' => 'exact', 'fiscal_protocol' => 'exact', 'fiscalAuthorizationStatus' => 'exact', 'fiscal_authorization_status' => 'exact', 'status' => 'exact', 'status.realStatus' => 'exact', 'invoiceNumber' => 'exact', 'invoiceKey' => 'exact', 'invoice_key' => 'exact', 'company' => 'exact', 'client' => 'exact', 'provider' => 'exact', 'carrier' => 'exact', 'id' => 'exact'])]
 #[ORM\Table(name: 'invoice_tax')]
 #[ORM\UniqueConstraint(name: 'uniq_invoice_tax_invoice_key', columns: ['invoice_key'])]
 #[ORM\Entity]
@@ -92,15 +111,35 @@ class InvoiceTax
     #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
     private $invoiceTotal;
 
+    #[ORM\Column(name: 'fiscal_type', type: 'string', length: 10, nullable: true)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private ?string $fiscalType = null;
+
+    #[ORM\Column(name: 'fiscal_series', type: 'string', length: 20, nullable: true)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private ?string $fiscalSeries = null;
+
+    #[ORM\Column(name: 'fiscal_number', type: 'string', length: 30, nullable: true)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private ?string $fiscalNumber = null;
+
+    #[ORM\Column(name: 'fiscal_protocol', type: 'string', length: 60, nullable: true)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private ?string $fiscalProtocol = null;
+
+    #[ORM\Column(name: 'fiscal_authorization_status', type: 'string', length: 10, nullable: true)]
+    #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
+    private ?string $fiscalAuthorizationStatus = null;
+
     #[ORM\JoinColumn(name: 'cte_id', referencedColumnName: 'id', nullable: true)]
     #[ORM\ManyToOne(targetEntity: InvoiceTax::class)]
     #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
     private $cte;
 
     #[ORM\JoinColumn(name: 'invoice_task_id', referencedColumnName: 'id', nullable: true)]
-    #[ORM\ManyToOne(targetEntity: InvoiceTask::class)]
+    #[ORM\ManyToOne(targetEntity: Integration::class)]
     #[Groups(['invoice_tax:read'])]
-    private $invoiceTask;
+    private $integration;
 
     #[ORM\JoinColumn(name: 'issuer_id', referencedColumnName: 'id', nullable: true)]
     #[ORM\ManyToOne(targetEntity: People::class)]
@@ -210,6 +249,174 @@ class InvoiceTax
         }
     }
 
+    #[Groups(['invoice_tax:read', 'order:read'])]
+    public function getFiscalDocument(): array
+    {
+        $xml = $this->getInvoice();
+        $model = (int) ($this->invoiceModel ?: $this->detectFiscalModel($xml));
+        $isCte = $model === 57;
+        $type = $this->fiscalType ?: match ($model) {
+            57 => 'CTE',
+            55, 65 => 'NFE',
+            default => null,
+        };
+
+        return [
+            'type' => $type,
+            'model' => $model ?: null,
+            'series' => $this->firstFiscalValue($this->fiscalSeries, $this->extractFiscalXmlValue($xml, 'serie')),
+            'number' => $this->firstFiscalValue($this->fiscalNumber, $this->extractFiscalXmlValue($xml, $isCte ? 'nCT' : 'nNF')),
+            'key' => $this->firstFiscalValue($this->invoiceKey, $this->extractFiscalXmlValue($xml, $isCte ? 'chCTe' : 'chNFe')),
+            'issuedAt' => $this->firstFiscalValue($this->extractFiscalXmlValue($xml, 'dhEmi')),
+            'cfop' => $this->firstFiscalValue($this->extractFiscalXmlValue($xml, 'CFOP')),
+            'protocol' => $this->firstFiscalValue($this->fiscalProtocol, $this->extractFiscalXmlValue($xml, 'nProt')),
+            'authorizationStatus' => $this->firstFiscalValue($this->fiscalAuthorizationStatus, $this->extractFiscalXmlValue($xml, 'cStat')),
+            'authorizationMessage' => $this->firstFiscalValue($this->extractFiscalXmlValue($xml, 'xMotivo')),
+            'authorizedAt' => $this->firstFiscalValue($this->extractFiscalXmlValue($xml, 'dhRecbto')),
+            'total' => $this->firstFiscalValue($this->extractFiscalXmlValue($xml, $isCte ? 'vTPrest' : 'vNF')),
+        ];
+    }
+
+    #[Groups(['invoice_tax:read', 'order:read'])]
+    public function getFiscalType(): ?string
+    {
+        return $this->fiscalType;
+    }
+
+    public function setFiscalType(?string $fiscalType): self
+    {
+        $this->fiscalType = $this->normalizeFiscalString($fiscalType);
+
+        return $this;
+    }
+
+    #[Groups(['invoice_tax:read', 'order:read'])]
+    public function getFiscalSeries(): ?string
+    {
+        return $this->fiscalSeries;
+    }
+
+    public function setFiscalSeries(?string $fiscalSeries): self
+    {
+        $this->fiscalSeries = $this->normalizeFiscalString($fiscalSeries);
+
+        return $this;
+    }
+
+    #[Groups(['invoice_tax:read', 'order:read'])]
+    public function getFiscalNumber(): ?string
+    {
+        return $this->fiscalNumber;
+    }
+
+    public function setFiscalNumber(?string $fiscalNumber): self
+    {
+        $this->fiscalNumber = $this->normalizeFiscalString($fiscalNumber);
+
+        return $this;
+    }
+
+    #[Groups(['invoice_tax:read', 'order:read'])]
+    public function getFiscalProtocol(): ?string
+    {
+        return $this->fiscalProtocol;
+    }
+
+    public function setFiscalProtocol(?string $fiscalProtocol): self
+    {
+        $this->fiscalProtocol = $this->normalizeFiscalString($fiscalProtocol);
+
+        return $this;
+    }
+
+    #[Groups(['invoice_tax:read', 'order:read'])]
+    public function getFiscalAuthorizationStatus(): ?string
+    {
+        return $this->fiscalAuthorizationStatus;
+    }
+
+    public function setFiscalAuthorizationStatus(?string $fiscalAuthorizationStatus): self
+    {
+        $this->fiscalAuthorizationStatus = $this->normalizeFiscalString($fiscalAuthorizationStatus);
+
+        return $this;
+    }
+
+    public function syncFiscalDocumentFieldsFromXml(?string $xml = null): self
+    {
+        $xml ??= $this->getInvoice();
+        $model = (int) ($this->invoiceModel ?: $this->detectFiscalModel($xml));
+        $isCte = $model === 57;
+
+        $this->setFiscalType(match ($model) {
+            57 => 'CTE',
+            55, 65 => 'NFE',
+            default => null,
+        });
+        $this->setFiscalSeries($this->extractFiscalXmlValue($xml, 'serie'));
+        $this->setFiscalNumber($this->extractFiscalXmlValue($xml, $isCte ? 'nCT' : 'nNF'));
+        $this->setFiscalProtocol($this->extractFiscalXmlValue($xml, 'nProt'));
+        $this->setFiscalAuthorizationStatus($this->extractFiscalXmlValue($xml, 'cStat'));
+
+        return $this;
+    }
+
+    private function normalizeFiscalString(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
+    }
+
+    private function firstFiscalValue(?string ...$values): ?string
+    {
+        foreach ($values as $value) {
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function detectFiscalModel(?string $xml): int
+    {
+        if (is_string($xml) && (stripos($xml, '<CTe') !== false || stripos($xml, '<cteProc') !== false)) {
+            return 57;
+        }
+
+        if (is_string($xml) && (stripos($xml, '<NFe') !== false || stripos($xml, '<nfeProc') !== false)) {
+            return 55;
+        }
+
+        return 0;
+    }
+
+    private function extractFiscalXmlValue(?string $xml, string $tagName): string
+    {
+        if (!is_string($xml) || trim($xml) === '') {
+            return '';
+        }
+
+        $document = new \DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $loaded = $document->loadXML($xml);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        if ($loaded === false) {
+            return '';
+        }
+
+        $xpath = new \DOMXPath($document);
+        $nodes = $xpath->query(sprintf('//*[local-name()="%s"]', $tagName));
+        if ($nodes === false || $nodes->length === 0) {
+            return '';
+        }
+
+        return trim((string) $nodes->item(0)->textContent);
+    }
+
     public function setInvoice($invoice)
     {
         return $this;
@@ -270,15 +477,15 @@ class InvoiceTax
         return $this->cte;
     }
 
-    public function setInvoiceTask(?InvoiceTask $invoiceTask): self
+    public function setIntegration(?Integration $integration): self
     {
-        $this->invoiceTask = $invoiceTask;
+        $this->integration = $integration;
         return $this;
     }
 
-    public function getInvoiceTask(): ?InvoiceTask
+    public function getIntegration(): ?Integration
     {
-        return $this->invoiceTask;
+        return $this->integration;
     }
 
     public function setIssuer(?People $issuer)

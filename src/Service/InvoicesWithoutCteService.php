@@ -8,32 +8,22 @@ use ControleOnline\Entity\People;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 
 class InvoicesWithoutCteService
 {
     public const NF_MODELS = [55, 65];
     public const CTE_MODEL = 57;
 
-    public function __construct(
-        private EntityManagerInterface $entityManager,
-        private TokenStorageInterface $tokenStorage,
-    ) {
+    public function __construct(private EntityManagerInterface $entityManager)
+    {
     }
 
     public function list(?int $issuerId = null, array $ids = []): array
     {
-        $scope = $this->resolveCompanyScope();
-        if (!$scope['unrestricted'] && $scope['companyIds'] === []) {
-            return $this->emptyPayload();
-        }
-        if ($issuerId && !$scope['unrestricted'] && !in_array($issuerId, $scope['companyIds'], true)) {
-            return $this->emptyPayload();
-        }
         try {
-            $items = $this->listViaSql($issuerId, $ids, $scope);
+            $items = $ids ? $this->listViaDoctrine($issuerId, $ids) : $this->listViaSql($issuerId, $ids);
         } catch (\Throwable) {
-            $items = $this->listViaDoctrine($issuerId, $ids, $scope);
+            $items = $this->listViaDoctrine($issuerId, $ids);
         }
         $groups = $this->groupInvoices($items);
         $totalValue = array_reduce(
@@ -110,6 +100,7 @@ class InvoicesWithoutCteService
         } catch (\Throwable) {
             $xml = null;
         }
+        $cteDefaults = $this->cteDefaults(is_string($xml) ? $xml : null);
 
         return [
             '@id' => '/invoice_taxes/' . $invoice->getId(),
@@ -120,6 +111,11 @@ class InvoicesWithoutCteService
             'invoiceTotal' => $invoice->getInvoiceTotal() === null ? 0 : (float) $invoice->getInvoiceTotal(),
             'weight' => $this->extractWeight(is_string($xml) ? $xml : null),
             'rntrc' => $this->resolveRntrc($carrier, $company, $issuer),
+            'cteDefaults' => $cteDefaults,
+            'cteReadonlyFields' => array_keys(array_filter(
+                $cteDefaults,
+                static fn(mixed $value): bool => $value !== null && $value !== ''
+            )),
             'cteId' => $invoice->getCte()?->getId(),
             'companyId' => $this->peopleId($company),
             'companyName' => $this->peopleName($company, 'Empresa não informada'),
@@ -150,24 +146,6 @@ class InvoicesWithoutCteService
         $ids = array_values(array_unique(array_filter($ids)));
         if (!$ids) {
             return '';
-        }
-
-        try {
-            $document = $this->entityManager->getConnection()->fetchOne(
-                'SELECT d.document
-                 FROM document d
-                 INNER JOIN document_type t ON t.id = d.document_type_id
-                 WHERE d.people_id IN (?) AND (
-                    UPPER(t.document_type) LIKE ? OR UPPER(t.document_type) LIKE ?
-                 )
-                 ORDER BY d.id DESC',
-                [$ids, '%RNTRC%', '%ANTT%'],
-                [ArrayParameterType::INTEGER, ParameterType::STRING, ParameterType::STRING]
-            );
-            if (is_string($document) && trim($document) !== '') {
-                return trim($document);
-            }
-        } catch (\Throwable) {
         }
 
         try {
@@ -204,6 +182,61 @@ class InvoicesWithoutCteService
         return round($total, 3);
     }
 
+    private function cteDefaults(?string $xml): array
+    {
+        return [
+            'cfop' => $this->inferCteCfop($xml),
+            'tomador' => $this->inferTomador($xml),
+            'valorFrete' => $this->inferMoney($xml, 'vFrete'),
+            'valorReceber' => $this->inferMoney($xml, 'vFrete'),
+        ];
+    }
+
+    private function inferCteCfop(?string $xml): ?string
+    {
+        if (!$xml || !preg_match_all('/<CFOP>(\d{4})<\/CFOP>/i', $xml, $matches)) {
+            return null;
+        }
+
+        $directions = array_values(array_unique(array_map(
+            static fn(string $cfop): string => substr($cfop, 0, 1),
+            $matches[1] ?? []
+        )));
+
+        return match ($directions) {
+            ['5'] => '5353',
+            ['6'] => '6353',
+            default => null,
+        };
+    }
+
+    private function inferTomador(?string $xml): ?string
+    {
+        if (!$xml || !preg_match('/<modFrete>(\d)<\/modFrete>/i', $xml, $match)) {
+            return null;
+        }
+
+        return match ($match[1]) {
+            '0' => '0',
+            '1' => '3',
+            default => null,
+        };
+    }
+
+    private function inferMoney(?string $xml, string $tag): ?string
+    {
+        if (!$xml || !preg_match(sprintf('/<%1$s>([^<]+)<\/%1$s>/i', preg_quote($tag, '/')), $xml, $match)) {
+            return null;
+        }
+
+        $value = (float) str_replace(',', '.', trim((string) $match[1]));
+        if ($value <= 0) {
+            return null;
+        }
+
+        return number_format($value, 2, '.', '');
+    }
+
     private function peopleId(?People $people): ?int
     {
         return $people instanceof People ? (int) $people->getId() : null;
@@ -221,7 +254,7 @@ class InvoicesWithoutCteService
         return $alias !== '' ? $alias : ($name !== '' ? $name : $fallback);
     }
 
-    private function listViaDoctrine(?int $issuerId, array $ids, array $scope): array
+    private function listViaDoctrine(?int $issuerId, array $ids): array
     {
         $qb = $this->entityManager->createQueryBuilder()
             ->select('invoiceTax')
@@ -241,10 +274,6 @@ class InvoicesWithoutCteService
         if ($issuerId) {
             $qb->andWhere('issuer.id = :issuerId')->setParameter('issuerId', $issuerId);
         }
-        if (!$scope['unrestricted']) {
-            $qb->andWhere('(issuer.id IN (:allowedCompanies) OR company.id IN (:allowedCompanies) OR invoiceTax.company IN (:allowedCompanies))')
-                ->setParameter('allowedCompanies', $scope['companyIds']);
-        }
         if ($ids) {
             $qb->andWhere('invoiceTax.id IN (:ids)')->setParameter('ids', $ids);
         }
@@ -258,7 +287,7 @@ class InvoicesWithoutCteService
         return array_map(fn(InvoiceTax $invoice) => $this->serializeInvoice($invoice), $invoices);
     }
 
-    private function listViaSql(?int $issuerId, array $ids, array $scope): array
+    private function listViaSql(?int $issuerId, array $ids): array
     {
         $conn = $this->entityManager->getConnection();
         $columns = $this->invoiceTaxColumnSet();
@@ -302,17 +331,10 @@ class InvoicesWithoutCteService
             $params[] = $issuerId;
             $types[] = ParameterType::INTEGER;
         }
-        if (!$scope['unrestricted']) {
-            $sql .= ' AND (it.issuer_id IN (?) OR it.company_id IN (?))';
-            $params[] = $scope['companyIds'];
-            $params[] = $scope['companyIds'];
-            $types[] = ArrayParameterType::INTEGER;
-            $types[] = ArrayParameterType::INTEGER;
-        }
         if ($ids) {
             $sql .= ' AND it.id IN (?)';
             $params[] = $ids;
-            $types[] = ArrayParameterType::INTEGER;
+            $types[] = \Doctrine\DBAL\Connection::PARAM_INT_ARRAY;
         }
         if (isset($columns['invoice_task_id'])) {
             $sql .= ' AND it.invoice_task_id IS NULL';
@@ -360,6 +382,8 @@ class InvoicesWithoutCteService
             'invoiceTotal' => $row['invoice_total'] === null ? 0 : (float) $row['invoice_total'],
             'weight' => 0.0,
             'rntrc' => '',
+            'cteDefaults' => [],
+            'cteReadonlyFields' => [],
             'cteId' => $row['cte_id'] !== null ? (int) $row['cte_id'] : null,
             'companyId' => $companyId,
             'companyName' => $companyName,
@@ -384,69 +408,6 @@ class InvoicesWithoutCteService
         $alias = trim((string) ($alias ?? ''));
         $name = trim((string) ($name ?? ''));
         return $alias !== '' ? $alias : ($name !== '' ? $name : $fallback);
-    }
-
-
-    private function emptyPayload(): array
-    {
-        return [
-            'member' => [],
-            'hydra:member' => [],
-            'groups' => [],
-            'totalItems' => 0,
-            'totalValue' => 0,
-            'totalWeight' => 0,
-            'summary' => [
-                'sum' => ['invoiceTotal' => 0, 'weight' => 0],
-                'count' => ['invoices' => 0],
-            ],
-        ];
-    }
-
-    /**
-     * @return array{unrestricted: bool, companyIds: int[]}
-     */
-    private function resolveCompanyScope(): array
-    {
-        $user = $this->tokenStorage->getToken()?->getUser();
-        if (!is_object($user)) {
-            return ['unrestricted' => false, 'companyIds' => []];
-        }
-        $roles = method_exists($user, 'getRoles') ? (array) $user->getRoles() : [];
-        if (in_array('ROLE_SUPER', $roles, true)) {
-            return ['unrestricted' => true, 'companyIds' => []];
-        }
-
-        $people = method_exists($user, 'getPeople') ? $user->getPeople() : null;
-        $peopleId = $people instanceof People ? (int) $people->getId() : 0;
-        if ($peopleId <= 0) {
-            return ['unrestricted' => false, 'companyIds' => []];
-        }
-
-        $ids = [$peopleId];
-        try {
-            $linked = $this->entityManager->getConnection()->fetchFirstColumn(
-                'SELECT company_id FROM people_link WHERE people_id = ? AND (enabled = 1 OR enabled IS NULL)',
-                [$peopleId]
-            );
-            foreach ($linked ?: [] as $companyId) {
-                $ids[] = (int) $companyId;
-            }
-        } catch (\Throwable) {
-            try {
-                $linked = $this->entityManager->getConnection()->fetchFirstColumn(
-                    'SELECT company FROM people_link WHERE people_id = ? AND (enabled = 1 OR enabled IS NULL)',
-                    [$peopleId]
-                );
-                foreach ($linked ?: [] as $companyId) {
-                    $ids[] = (int) $companyId;
-                }
-            } catch (\Throwable) {
-            }
-        }
-
-        $ids = array_values(array_unique(array_filter($ids)));
-        return ['unrestricted' => false, 'companyIds' => $ids];
     }
 
     private function busyInvoiceIds(): array

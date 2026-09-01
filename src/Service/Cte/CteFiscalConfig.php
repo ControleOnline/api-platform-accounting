@@ -5,6 +5,7 @@ namespace ControleOnline\Service\Cte;
 use ControleOnline\Entity\Config;
 use ControleOnline\Entity\File;
 use ControleOnline\Entity\People;
+use ControleOnline\Service\ConfigService;
 use Doctrine\ORM\EntityManagerInterface;
 
 class CteFiscalConfig
@@ -12,75 +13,58 @@ class CteFiscalConfig
     public const KEYS = [
         'receita-federal-certificate-file',
         'receita-federal-certificate-password',
+        'receita-federal-certificate-document',
         'receita-federal-environment',
         'receita-federal-tax-regime',
         'receita-federal-ibge-code',
+        'receita-federal-state-registration',
         'receita-federal-cte-enabled',
         'receita-federal-cte-serie',
         'receita-federal-cte-last-number',
         'receita-federal-cte-rntrc',
     ];
 
-    public function __construct(private EntityManagerInterface $manager)
-    {
+    public function __construct(
+        private EntityManagerInterface $manager,
+        private ConfigService $configService
+    ) {
     }
 
     public function load(?People $company): array
     {
         $values = array_fill_keys(self::KEYS, null);
-        if ($company === null || !class_exists(Config::class)) {
+        if ($company === null) {
             return $values;
         }
 
-        $configs = $this->manager->getRepository(Config::class)->findBy(['people' => $company]);
-        foreach ($configs as $config) {
-            $key = $this->configKey($config);
-            if ($key === '' || !array_key_exists($key, $values)) {
-                continue;
-            }
-            $values[$key] = $this->configValue($config);
+        foreach (self::KEYS as $key) {
+            $values[$key] = $this->configService->getConfig($company, $key);
         }
 
         $values['nextNumber'] = ((int) ($values['receita-federal-cte-last-number'] ?? 0)) + 1;
         $values['certificateBinary'] = $this->resolveCertificate($values['receita-federal-certificate-file'] ?? null);
+        $certificateIssuer = $this->certificateIssuer(
+            $values['certificateBinary'],
+            $values['receita-federal-certificate-password'] ?? null
+        );
+        $configuredDocument = preg_replace('/\D+/', '', (string) ($values['receita-federal-certificate-document'] ?? ''));
+        $values['certificateDocument'] = $configuredDocument !== ''
+            && substr($configuredDocument, 0, 8) === substr((string) $certificateIssuer['document'], 0, 8)
+                ? $configuredDocument
+                : $certificateIssuer['document'];
+        $values['certificateName'] = $certificateIssuer['name'];
 
         return $values;
     }
 
     public function incrementLastNumber(?People $company, int $authorizedNumber): void
     {
-        if ($company === null || !class_exists(Config::class)) {
+        if ($company === null) {
             return;
         }
 
-        $repo = $this->manager->getRepository(Config::class);
-        $config = $repo->findOneBy([
-            'people' => $company,
-            'configKey' => 'receita-federal-cte-last-number',
-        ]);
-        if ($config === null) {
-            foreach ($repo->findBy(['people' => $company]) as $candidate) {
-                if ($this->configKey($candidate) === 'receita-federal-cte-last-number') {
-                    $config = $candidate;
-                    break;
-                }
-            }
-        }
-        if ($config === null) {
-            $config = new Config();
-            if (method_exists($config, 'setPeople')) {
-                $config->setPeople($company);
-            }
-            if (method_exists($config, 'setConfigKey')) {
-                $config->setConfigKey('receita-federal-cte-last-number');
-            }
-            $this->manager->persist($config);
-        }
-        if (method_exists($config, 'setValue')) {
-            $config->setValue((string) $authorizedNumber);
-        } elseif (method_exists($config, 'setConfigValue')) {
-            $config->setConfigValue((string) $authorizedNumber);
-        }
+        $module = $this->configService->discoveryModule('config');
+        $this->configService->addConfig($company, 'receita-federal-cte-last-number', (string) $authorizedNumber, $module, 'private');
     }
 
     private function resolveCertificate(mixed $raw): ?string
@@ -104,25 +88,36 @@ class CteFiscalConfig
         return $file->getContent(true);
     }
 
-    private function configKey(object $config): string
+    /**
+     * @return array{document: ?string, name: ?string}
+     */
+    private function certificateIssuer(?string $binary, mixed $password): array
     {
-        foreach (['getConfigKey', 'getKey', 'getName'] as $method) {
-            if (method_exists($config, $method)) {
-                return (string) $config->{$method}();
-            }
+        $issuer = ['document' => null, 'name' => null];
+        if ($binary === null || $binary === '' || $password === null || $password === '') {
+            return $issuer;
         }
 
-        return '';
-    }
-
-    private function configValue(object $config): mixed
-    {
-        foreach (['getValue', 'getConfigValue', 'getContent'] as $method) {
-            if (method_exists($config, $method)) {
-                return $config->{$method}();
-            }
+        $certificates = [];
+        if (!@openssl_pkcs12_read($binary, $certificates, (string) $password) || empty($certificates['cert'])) {
+            return $issuer;
         }
 
-        return null;
+        $parsed = openssl_x509_parse($certificates['cert']);
+        if (!is_array($parsed)) {
+            return $issuer;
+        }
+
+        $commonName = (string) ($parsed['subject']['CN'] ?? '');
+        if (preg_match('/(\d{14})/', $commonName, $match)) {
+            $issuer['document'] = $match[1];
+        }
+
+        $name = trim((string) preg_replace('/[:\\s]*\d{14}.*/', '', $commonName));
+        if ($name !== '') {
+            $issuer['name'] = $name;
+        }
+
+        return $issuer;
     }
 }
