@@ -41,6 +41,12 @@ class CteFiscalConfig
 
         $values['nextNumber'] = ((int) ($values['receita-federal-cte-last-number'] ?? 0)) + 1;
         $values['certificateBinary'] = $this->resolveCertificate($values['receita-federal-certificate-file'] ?? null);
+        $certificateIssuer = $this->certificateIssuer(
+            $values['certificateBinary'],
+            $values['receita-federal-certificate-password'] ?? null
+        );
+        $values['certificateDocument'] = $certificateIssuer['document'];
+        $values['certificateName'] = $certificateIssuer['name'];
 
         return $values;
     }
@@ -76,5 +82,36 @@ class CteFiscalConfig
         return $file->getContent(true);
     }
 
+    /**
+     * @return array{document: ?string, name: ?string}
+     */
+    private function certificateIssuer(?string $binary, mixed $password): array
+    {
+        $issuer = ['document' => null, 'name' => null];
+        if ($binary === null || $binary === '' || $password === null || $password === '') {
+            return $issuer;
+        }
 
+        $certificates = [];
+        if (!@openssl_pkcs12_read($binary, $certificates, (string) $password) || empty($certificates['cert'])) {
+            return $issuer;
+        }
+
+        $parsed = openssl_x509_parse($certificates['cert']);
+        if (!is_array($parsed)) {
+            return $issuer;
+        }
+
+        $commonName = (string) ($parsed['subject']['CN'] ?? '');
+        if (preg_match('/(\d{14})/', $commonName, $match)) {
+            $issuer['document'] = $match[1];
+        }
+
+        $name = trim((string) preg_replace('/[:\\s]*\d{14}.*/', '', $commonName));
+        if ($name !== '') {
+            $issuer['name'] = $name;
+        }
+
+        return $issuer;
+    }
 }

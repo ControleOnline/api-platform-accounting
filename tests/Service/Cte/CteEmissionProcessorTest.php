@@ -33,7 +33,7 @@ final class CteEmissionProcessorTest extends TestCase
         $task->setPayload(json_encode([
             'invoiceTaxIds' => [10, 11],
             'cfop' => '5353',
-            'extra' => [],
+            'extra' => ['valorFrete' => '30.00', 'valorReceber' => '30.00'],
         ]));
 
         $statuses = [];
@@ -75,7 +75,7 @@ final class CteEmissionProcessorTest extends TestCase
             'receita-federal-environment' => '2',
             'receita-federal-ibge-code' => '3550308',
             'nextNumber' => 7,
-        ], '5353');
+        ], '5353', ['valorFrete' => '30.00', 'valorReceber' => '30.00']);
 
         $sefaz = $this->createMock(CteSefazClient::class);
         $sefaz->method('signAndSend')->willReturn([
