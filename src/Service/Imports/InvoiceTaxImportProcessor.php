@@ -214,11 +214,11 @@ class InvoiceTaxImportProcessor implements ImportProcessorInterface
             $invoiceTax->setFile($xmlFile);
         }
 
-        $invoiceTax->setInvoice($xmlContent);
         $invoiceTax->setInvoiceKey($parsed['key'] ?? '');
         $invoiceTax->setInvoiceNumber((int) ($parsed['number'] ?? 0));
         $invoiceTax->setInvoiceModel($parsed['model'] ?? null);
         $invoiceTax->setInvoiceTotal($parsed['total'] ?? null);
+        $invoiceTax->syncFiscalDocumentFieldsFromXml($xmlContent);
         $invoiceTax->setStatus($statusOpen);
         $invoiceTax->setCompany($company instanceof People ? $company : null);
         $invoiceTax->setProvider($provider);
