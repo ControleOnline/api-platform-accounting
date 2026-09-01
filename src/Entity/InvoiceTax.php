@@ -9,6 +9,7 @@ use ApiPlatform\Metadata\Post;
 use ControleOnline\Controller\DownloadOrderNFAction;
 use ControleOnline\Controller\InvoiceTaxUploadController;
 use ControleOnline\Controller\ListInvoicesWithoutCteAction;
+use ControleOnline\Controller\ListOrdersWithoutFiscalDocumentAction;
 use ControleOnline\Controller\EmitCteAction;
 use ControleOnline\Entity\Address;
 use ControleOnline\Entity\File;
@@ -26,6 +27,14 @@ use Symfony\Component\Serializer\Attribute\Groups;
             name: 'invoice_taxes_without_cte',
             uriTemplate: '/invoice_taxes/without-cte',
             controller: ListInvoicesWithoutCteAction::class,
+            read: false,
+            output: false,
+            security: 'is_granted(\'ROLE_HUMAN\')'
+        ),
+        new GetCollection(
+            name: 'orders_without_fiscal_document',
+            uriTemplate: '/orders/without-fiscal-document',
+            controller: ListOrdersWithoutFiscalDocumentAction::class,
             read: false,
             output: false,
             security: 'is_granted(\'ROLE_HUMAN\')'
