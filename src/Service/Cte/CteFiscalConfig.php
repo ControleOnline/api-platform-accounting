@@ -16,6 +16,7 @@ class CteFiscalConfig
         'receita-federal-environment',
         'receita-federal-tax-regime',
         'receita-federal-ibge-code',
+        'receita-federal-state-registration',
         'receita-federal-cte-enabled',
         'receita-federal-cte-serie',
         'receita-federal-cte-last-number',
