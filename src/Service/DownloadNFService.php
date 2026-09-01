@@ -44,6 +44,7 @@ class DownloadNFService
                 'mime' => 'application/pdf',
                 'pdf' => base64_encode($pdf),
                 'invoiceNumber' => $invoiceTax->getInvoiceNumber(),
+                'filename' => $this->getDownloadFilename($invoiceTax, 'pdf'),
             ]);
         }
 
@@ -65,11 +66,36 @@ class DownloadNFService
             'Content-Disposition',
             HeaderUtils::makeDisposition(
                 $format === 'pdf' ? HeaderUtils::DISPOSITION_INLINE : HeaderUtils::DISPOSITION_ATTACHMENT,
-                $this->filenames[$format] ?? 'nota_fiscal.bin'
+                $this->getDownloadFilename($invoiceTax, $format)
             )
         );
 
         return $response;
+    }
+
+    public function getDownloadFilename(InvoiceTax $invoiceTax, string $format): string
+    {
+        $format = strtolower($format);
+        if ($format !== 'pdf') {
+            return $this->filenames[$format] ?? 'nota_fiscal.bin';
+        }
+
+        $xml = $this->getXml($invoiceTax);
+        $model = (int) ($invoiceTax->getInvoiceModel() ?: ($xml !== null ? $this->detectModel($xml) : 0));
+        if ($xml === null) {
+            return $this->filenames['pdf'];
+        }
+
+        $series = $this->extractXmlValue($xml, 'serie');
+        $numberTag = $model === 57 ? 'nCT' : 'nNF';
+        $number = $this->extractXmlValue($xml, $numberTag) ?: (string) $invoiceTax->getInvoiceNumber();
+        if ($series === '' || $number === '') {
+            return $this->filenames['pdf'];
+        }
+
+        $prefix = $model === 57 ? 'CTE' : 'NFE';
+
+        return sprintf('%s-%s-%s.pdf', $prefix, $this->sanitizeFilenamePart($series), $this->sanitizeFilenamePart($number));
     }
 
     private function getXml(InvoiceTax $invoiceTax): ?string
@@ -114,6 +140,34 @@ class DownloadNFService
         }
 
         return 55;
+    }
+
+    private function extractXmlValue(string $xml, string $tagName): string
+    {
+        $document = new \DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $loaded = $document->loadXML($xml);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        if ($loaded === false) {
+            return '';
+        }
+
+        $xpath = new \DOMXPath($document);
+        $nodes = $xpath->query(sprintf('//*[local-name()="%s"]', $tagName));
+        if ($nodes === false || $nodes->length === 0) {
+            return '';
+        }
+
+        return trim((string) $nodes->item(0)->textContent);
+    }
+
+    private function sanitizeFilenamePart(string $value): string
+    {
+        $value = preg_replace('/[^A-Za-z0-9._-]+/', '', trim($value)) ?? '';
+
+        return $value;
     }
 
     private function getPng(InvoiceTax $invoiceTax): ?string
