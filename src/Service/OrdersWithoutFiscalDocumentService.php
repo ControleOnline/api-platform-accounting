@@ -13,11 +13,14 @@ final class OrdersWithoutFiscalDocumentService
     {
     }
 
-    public function list(string $documentType): array
+    public function list(string $documentType, string $provider): array
     {
         $type = strtolower(trim($documentType));
         if (!array_key_exists($type, self::DOCUMENT_TYPES)) {
             throw new \InvalidArgumentException('Tipo de documento fiscal invalido.');
+        }
+        if (!preg_match('#^/people/(\d+)$#', trim($provider), $providerMatch)) {
+            throw new \InvalidArgumentException('Provider obrigatorio para listar pedidos fiscais.');
         }
 
         $orders = $this->entityManager->createQueryBuilder()
@@ -44,7 +47,9 @@ final class OrdersWithoutFiscalDocumentService
             ->leftJoin('ord.provider', 'provider')
             ->leftJoin('ord.status', 'status')
             ->andWhere('invoiceLink.id IS NULL')
+            ->andWhere('ord.provider = :provider')
             ->setParameter('invoiceType', self::DOCUMENT_TYPES[$type])
+            ->setParameter('provider', (int) $providerMatch[1])
             ->orderBy('ord.orderDate', 'DESC')
             ->getQuery()
             ->getArrayResult();
