@@ -291,7 +291,7 @@ class CteXmlBuilder
             return $inferred;
         }
 
-        if (in_array($normalized, ['5932', '6932'], true)) {
+        if (in_array($normalized, ['5353', '6353', '5932', '6932'], true)) {
             return $normalized;
         }
 
@@ -316,10 +316,10 @@ class CteXmlBuilder
             $cfops
         )));
         if ($directions === ['5']) {
-            return '5932';
+            return '5353';
         }
         if ($directions === ['6']) {
-            return '6932';
+            return '6353';
         }
 
         return null;
