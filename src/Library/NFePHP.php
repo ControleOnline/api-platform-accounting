@@ -67,7 +67,7 @@ class NFePHP
          */
 
         //$ide->forPag = '';              // 0-Pago; 1-A pagar; 2-Outros
-        $ide->mod = '57'; // Modelo do documento fiscal: 57 para identificação do CT-e
+        $ide->mod = (string) $this->model; // O modelo deve corresponder ao documento solicitado.
         $ide->serie = '1'; // Serie do CTe
         $ide->nCT = $numeroCTE; // Numero do CTe
         $ide->dhEmi = $dhEmi; // Data e hora de emissão do CT-e: Formato AAAA-MM-DDTHH:MM:DD
