@@ -193,7 +193,10 @@ class CteXmlBuilder
         } else {
             $emit->CNPJ = str_pad($doc ?: '00000000000000', 14, '0', STR_PAD_LEFT);
         }
-        $emit->IE = 'ISENTO';
+        $emit->IE = $this->requiredStateRegistration(
+            $fiscal['receita-federal-state-registration'] ?? $fiscal['receita-federal-ie'] ?? null,
+            'IE do emitente'
+        );
         $certificateName = trim((string) ($fiscal['certificateName'] ?? $fiscal['receita-federal-certificate-name'] ?? ''));
         $emit->xNome = $certificateName !== '' ? $certificateName : ($company?->getName() ?: $company?->getAlias() ?: 'SEM NOME');
         $emit->xFant = $company?->getAlias() ?: $emit->xNome;
@@ -387,6 +390,16 @@ class CteXmlBuilder
         }
 
         return $normalized;
+    }
+
+    private function requiredStateRegistration(mixed $value, string $label): string
+    {
+        $normalized = strtoupper(trim((string) $value));
+        if ($normalized === 'ISENTO') {
+            return $normalized;
+        }
+
+        return $this->requiredDigits($value, $label);
     }
 
     private function buildEnder(?Address $address): \stdClass

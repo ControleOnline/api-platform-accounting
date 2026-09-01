@@ -74,6 +74,7 @@ final class CteEmissionProcessorTest extends TestCase
             'receita-federal-environment' => '2',
             'receita-federal-ibge-code' => '3550308',
             'receita-federal-cte-rntrc' => '12345678',
+            'receita-federal-state-registration' => '407302089116',
             'nextNumber' => 7,
         ]);
         $fiscal->expects(self::once())->method('incrementLastNumber')->with($company, 7);
@@ -83,6 +84,7 @@ final class CteEmissionProcessorTest extends TestCase
             'receita-federal-environment' => '2',
             'receita-federal-ibge-code' => '3550308',
             'receita-federal-cte-rntrc' => '12345678',
+            'receita-federal-state-registration' => '407302089116',
             'nextNumber' => 7,
         ], '5932', [
             'modal' => '01',

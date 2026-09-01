@@ -21,6 +21,7 @@ final class CteXmlBuilderTest extends TestCase
                 'receita-federal-environment' => '2',
                 'receita-federal-ibge-code' => '3550308',
                 'receita-federal-cte-rntrc' => '12345678',
+                'receita-federal-state-registration' => '407302089116',
                 'nextNumber' => 11,
             ],
             '5932',
@@ -62,6 +63,7 @@ final class CteXmlBuilderTest extends TestCase
                 'receita-federal-environment' => '2',
                 'receita-federal-ibge-code' => '3550308',
                 'receita-federal-cte-rntrc' => '12345678',
+                'receita-federal-state-registration' => '407302089116',
                 'nextNumber' => 11,
             ],
             '5932',
@@ -77,7 +79,7 @@ final class CteXmlBuilderTest extends TestCase
     {
         $xml = (new CteXmlBuilder())->build(
             [$this->invoice('35240112345678000190550010000001231000001234', 10.5)],
-            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678', 'receita-federal-state-registration' => '407302089116'],
             '5932',
             $this->cteValues()
         );
@@ -96,7 +98,7 @@ final class CteXmlBuilderTest extends TestCase
 
         $xml = (new CteXmlBuilder())->build(
             [$invoice],
-            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678', 'receita-federal-state-registration' => '407302089116'],
             '5932',
             $this->cteValues()
         );
@@ -115,7 +117,7 @@ final class CteXmlBuilderTest extends TestCase
 
         $xml = (new CteXmlBuilder())->build(
             [$invoice],
-            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678', 'receita-federal-state-registration' => '407302089116'],
             '5932',
             $this->cteValues()
         );
@@ -128,31 +130,31 @@ final class CteXmlBuilderTest extends TestCase
     {
         $xml = (new CteXmlBuilder())->build(
             [$this->invoice('35240112345678000190550010000001231000001234', 10.5)],
-            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678', 'receita-federal-state-registration' => '407302089116'],
             '6932',
-            $this->cteValues()
-        );
-
-        self::assertStringContainsString('<CFOP>6353</CFOP>', $xml);
-    }
-
-    public function testBuildInfersCteCfopFromNfeItemCfop(): void
-    {
-        $xml = (new CteXmlBuilder())->build(
-            [$this->invoiceWithXml('<NFe><infNFe><det><prod><CFOP>6152</CFOP></prod></det></infNFe></NFe>')],
-            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
-            '',
             $this->cteValues()
         );
 
         self::assertStringContainsString('<CFOP>6932</CFOP>', $xml);
     }
 
+    public function testBuildInfersCteCfopFromNfeItemCfop(): void
+    {
+        $xml = (new CteXmlBuilder())->build(
+            [$this->invoiceWithXml('<NFe><infNFe><det><prod><CFOP>6152</CFOP></prod></det></infNFe></NFe>')],
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678', 'receita-federal-state-registration' => '407302089116'],
+            '',
+            $this->cteValues()
+        );
+
+        self::assertStringContainsString('<CFOP>6353</CFOP>', $xml);
+    }
+
     public function testBuildInfersTomadorFromNfeFreightMode(): void
     {
         $xml = (new CteXmlBuilder())->build(
             [$this->invoiceWithXml('<NFe><infNFe><transp><modFrete>0</modFrete></transp></infNFe></NFe>')],
-            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678', 'receita-federal-state-registration' => '407302089116'],
             '5932',
             [
                 'modal' => '01',
@@ -174,7 +176,7 @@ final class CteXmlBuilderTest extends TestCase
 
         (new CteXmlBuilder())->build(
             [$this->invoice('35240112345678000190550010000001231000001234', 10.5)],
-            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678', 'receita-federal-state-registration' => '407302089116'],
             '5932',
             [
                 'modal' => '01',
@@ -202,6 +204,19 @@ final class CteXmlBuilderTest extends TestCase
                 'valorFrete' => '10.50',
                 'valorReceber' => '10.50',
             ]
+        );
+    }
+
+    public function testBuildRequiresEmitterStateRegistrationFromFiscalConfig(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('IE do emitente');
+
+        (new CteXmlBuilder())->build(
+            [$this->invoice('35240112345678000190550010000001231000001234', 10.5)],
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            '5932',
+            $this->cteValues()
         );
     }
 
