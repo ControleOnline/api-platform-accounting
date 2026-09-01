@@ -125,7 +125,7 @@ class CteXmlBuilder
     {
         $first = $invoices[0];
         $company = $first->getCompany() ?: $first->getIssuer();
-        $cnpj = preg_replace('/\D+/', '', $this->peopleDocument($company) ?: '00000000000000');
+        $cnpj = $this->issuerDocument($company, $fiscal);
         $ibgeCode = $this->ibgeCode($fiscal);
         $cUF = substr($ibgeCode, 0, 2);
         $mod = '57';
@@ -175,7 +175,7 @@ class CteXmlBuilder
 
     private function buildEmit(?People $company, ?Address $address, array $fiscal): \stdClass
     {
-        $doc = $this->peopleDocument($company);
+        $doc = $this->issuerDocument($company, $fiscal);
         $isCpf = strlen($doc) === 11;
         $emit = new \stdClass();
         if ($isCpf) {
@@ -184,10 +184,22 @@ class CteXmlBuilder
             $emit->CNPJ = str_pad($doc ?: '00000000000000', 14, '0', STR_PAD_LEFT);
         }
         $emit->IE = 'ISENTO';
-        $emit->xNome = $company?->getName() ?: $company?->getAlias() ?: 'SEM NOME';
+        $certificateName = trim((string) ($fiscal['certificateName'] ?? $fiscal['receita-federal-certificate-name'] ?? ''));
+        $emit->xNome = $certificateName !== '' ? $certificateName : ($company?->getName() ?: $company?->getAlias() ?: 'SEM NOME');
         $emit->xFant = $company?->getAlias() ?: $emit->xNome;
         $emit->CRT = (string) ($fiscal['receita-federal-tax-regime'] ?? $fiscal['crt'] ?? '1');
         return $emit;
+    }
+
+    private function issuerDocument(?People $company, array $fiscal): string
+    {
+        $certificateDocument = preg_replace(
+            '/\D+/',
+            '',
+            (string) ($fiscal['certificateDocument'] ?? $fiscal['receita-federal-certificate-document'] ?? '')
+        );
+
+        return $certificateDocument !== '' ? $certificateDocument : $this->peopleDocument($company);
     }
 
     private function ibgeCode(array $fiscal): string

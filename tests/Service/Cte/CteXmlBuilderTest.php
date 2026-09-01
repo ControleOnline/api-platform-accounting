@@ -48,6 +48,26 @@ final class CteXmlBuilderTest extends TestCase
         self::assertSame($dv, $builder->checkDigit($base));
     }
 
+    public function testBuildUsesCertificateIssuerAsEmitter(): void
+    {
+        $xml = (new CteXmlBuilder())->build(
+            [$this->invoice('35240112345678000190550010000001231000001234', 10.5)],
+            [
+                'certificateDocument' => '11222333000181',
+                'certificateName' => 'TRANSPORTADORA CERTIFICADA LTDA',
+                'receita-federal-cte-serie' => '2',
+                'receita-federal-environment' => '2',
+                'receita-federal-ibge-code' => '3550308',
+                'nextNumber' => 11,
+            ],
+            '5353'
+        );
+
+        self::assertStringContainsString('<emit><CNPJ>11222333000181</CNPJ>', $xml);
+        self::assertStringContainsString('<xNome>TRANSPORTADORA CERTIFICADA LTDA</xNome>', $xml);
+        self::assertMatchesRegularExpression('/Id="CTe\\d{6}1122233300018157/', $xml);
+    }
+
     private function invoice(string $key, float $total): InvoiceTax
     {
         $invoice = new InvoiceTax();
