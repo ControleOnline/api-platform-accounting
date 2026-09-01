@@ -206,8 +206,8 @@ class InvoicesWithoutCteService
         )));
 
         return match ($directions) {
-            ['5'] => '5932',
-            ['6'] => '6932',
+            ['5'] => '5353',
+            ['6'] => '6353',
             default => null,
         };
     }

@@ -31,7 +31,7 @@ final class InvoicesWithoutCteServiceTest extends TestCase
         $service = new InvoicesWithoutCteService($this->createMock(EntityManagerInterface::class));
         $data = $service->serializeInvoice($invoice);
 
-        self::assertSame('6932', $data['cteDefaults']['cfop']);
+        self::assertSame('6353', $data['cteDefaults']['cfop']);
         self::assertSame('0', $data['cteDefaults']['tomador']);
         self::assertSame('42.50', $data['cteDefaults']['valorFrete']);
         self::assertSame('42.50', $data['cteDefaults']['valorReceber']);

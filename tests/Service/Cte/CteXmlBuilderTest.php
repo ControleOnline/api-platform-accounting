@@ -133,7 +133,7 @@ final class CteXmlBuilderTest extends TestCase
             $this->cteValues()
         );
 
-        self::assertStringContainsString('<CFOP>6932</CFOP>', $xml);
+        self::assertStringContainsString('<CFOP>6353</CFOP>', $xml);
     }
 
     public function testBuildInfersCteCfopFromNfeItemCfop(): void
