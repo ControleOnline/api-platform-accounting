@@ -169,7 +169,7 @@ class CteXmlBuilder
         $ide->xMunFim = $ide->xMunEnv;
         $ide->UFFim = $ide->UFEnv;
         $ide->retira = '1';
-        $ide->indIEToma = '1';
+        $ide->indIEToma = $this->tomadorIeIndicator($first->getClient());
         return $ide;
     }
 
@@ -219,8 +219,37 @@ class CteXmlBuilder
             $std->CNPJ = str_pad($doc ?: '00000000000000', 14, '0', STR_PAD_LEFT);
         }
         $std->xNome = $people?->getName() ?: $people?->getAlias() ?: 'SEM NOME';
-        $std->IE = 'ISENTO';
+        $stateRegistration = $this->stateRegistration($people);
+        if ($stateRegistration !== '') {
+            $std->IE = $stateRegistration;
+        }
         return $std;
+    }
+
+    private function tomadorIeIndicator(?People $tomador): string
+    {
+        $stateRegistration = $this->stateRegistration($tomador);
+        if ($stateRegistration === '') {
+            return '9';
+        }
+
+        return strtoupper($stateRegistration) === 'ISENTO' ? '2' : '1';
+    }
+
+    private function stateRegistration(?People $people): string
+    {
+        if (!$people instanceof People || !method_exists($people, 'getOtherInformations')) {
+            return '';
+        }
+
+        $info = $people->getOtherInformations(true);
+        $value = is_object($info) ? ($info->stateRegistration ?? $info->ie ?? null) : null;
+        $stateRegistration = strtoupper(trim((string) $value));
+        if ($stateRegistration === 'ISENTO') {
+            return $stateRegistration;
+        }
+
+        return preg_replace('/\D+/', '', $stateRegistration) ?: '';
     }
 
     private function buildEnder(?Address $address): \stdClass

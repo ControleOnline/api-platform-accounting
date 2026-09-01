@@ -3,6 +3,7 @@
 namespace ControleOnline\Tests\Service\Cte;
 
 use ControleOnline\Entity\InvoiceTax;
+use ControleOnline\Entity\People;
 use ControleOnline\Service\Cte\CteXmlBuilder;
 use PHPUnit\Framework\TestCase;
 
@@ -66,6 +67,54 @@ final class CteXmlBuilderTest extends TestCase
         self::assertStringContainsString('<emit><CNPJ>11222333000181</CNPJ>', $xml);
         self::assertStringContainsString('<xNome>TRANSPORTADORA CERTIFICADA LTDA</xNome>', $xml);
         self::assertMatchesRegularExpression('/Id="CTe\\d{6}1122233300018157/', $xml);
+    }
+
+    public function testBuildMarksTomadorAsNonContributorWhenStateRegistrationIsMissing(): void
+    {
+        $xml = (new CteXmlBuilder())->build(
+            [$this->invoice('35240112345678000190550010000001231000001234', 10.5)],
+            ['receita-federal-ibge-code' => '3550308'],
+            '5353'
+        );
+
+        self::assertStringContainsString('<indIEToma>9</indIEToma>', $xml);
+        self::assertStringNotContainsString('<IE>ISENTO</IE>', $xml);
+    }
+
+    public function testBuildUsesTomadorStateRegistrationWhenAvailable(): void
+    {
+        $invoice = $this->invoice('35240112345678000190550010000001231000001234', 10.5);
+        $client = new People();
+        $client->setName('CLIENTE CONTRIBUINTE');
+        $client->addOtherInformations('stateRegistration', '110042490114');
+        $invoice->setClient($client);
+
+        $xml = (new CteXmlBuilder())->build(
+            [$invoice],
+            ['receita-federal-ibge-code' => '3550308'],
+            '5353'
+        );
+
+        self::assertStringContainsString('<indIEToma>1</indIEToma>', $xml);
+        self::assertStringContainsString('<IE>110042490114</IE>', $xml);
+    }
+
+    public function testBuildMarksTomadorAsExemptWhenStateRegistrationIsExplicitlyExempt(): void
+    {
+        $invoice = $this->invoice('35240112345678000190550010000001231000001234', 10.5);
+        $client = new People();
+        $client->setName('CLIENTE ISENTO');
+        $client->addOtherInformations('stateRegistration', 'ISENTO');
+        $invoice->setClient($client);
+
+        $xml = (new CteXmlBuilder())->build(
+            [$invoice],
+            ['receita-federal-ibge-code' => '3550308'],
+            '5353'
+        );
+
+        self::assertStringContainsString('<indIEToma>2</indIEToma>', $xml);
+        self::assertStringContainsString('<IE>ISENTO</IE>', $xml);
     }
 
     private function invoice(string $key, float $total): InvoiceTax
