@@ -21,7 +21,23 @@ final class OrdersWithoutFiscalDocumentService
         }
 
         $orders = $this->entityManager->createQueryBuilder()
-            ->select('ord', 'client', 'provider', 'status')
+            ->select([
+                'ord.id AS id',
+                'ord.orderDate AS orderDate',
+                'ord.alterDate AS alterDate',
+                'ord.price AS price',
+                'ord.app AS app',
+                'ord.orderType AS orderType',
+                'client.id AS clientId',
+                'client.name AS clientName',
+                'client.alias AS clientAlias',
+                'provider.id AS providerId',
+                'provider.name AS providerName',
+                'provider.alias AS providerAlias',
+                'status.id AS statusId',
+                'status.status AS statusName',
+                'status.realStatus AS realStatus',
+            ])
             ->from(Order::class, 'ord')
             ->leftJoin('ord.invoiceTax', 'invoiceLink', 'WITH', 'invoiceLink.invoiceType = :invoiceType')
             ->leftJoin('ord.client', 'client')
@@ -31,31 +47,36 @@ final class OrdersWithoutFiscalDocumentService
             ->setParameter('invoiceType', self::DOCUMENT_TYPES[$type])
             ->orderBy('ord.orderDate', 'DESC')
             ->getQuery()
-            ->getResult();
+            ->getArrayResult();
 
-        return array_map(static function (Order $order): array {
-            $person = static fn($value): ?array => $value ? [
-                'id' => $value->getId(),
-                'name' => method_exists($value, 'getName') ? $value->getName() : null,
-                'alias' => method_exists($value, 'getAlias') ? $value->getAlias() : null,
-            ] : null;
-            $status = $order->getStatus();
+        return array_map(static function (array $order): array {
+            $person = static function (array $row, string $prefix): ?array {
+                if ($row[$prefix . 'Id'] === null) {
+                    return null;
+                }
+
+                return [
+                    'id' => (int) $row[$prefix . 'Id'],
+                    'name' => $row[$prefix . 'Name'],
+                    'alias' => $row[$prefix . 'Alias'],
+                ];
+            };
 
             return [
-                '@id' => '/orders/' . $order->getId(),
-                'id' => (int) $order->getId(),
-                'orderDate' => $order->getOrderDate()?->format(DATE_ATOM),
-                'alterDate' => $order->getAlterDate()?->format(DATE_ATOM),
-                'price' => $order->getPrice(),
-                'client' => $person($order->getClient()),
-                'provider' => $person($order->getProvider()),
-                'status' => $status ? [
-                    'id' => $status->getId(),
-                    'status' => $status->getStatus(),
-                    'realStatus' => $status->getRealStatus(),
+                '@id' => '/orders/' . $order['id'],
+                'id' => (int) $order['id'],
+                'orderDate' => $order['orderDate']?->format(DATE_ATOM),
+                'alterDate' => $order['alterDate']?->format(DATE_ATOM),
+                'price' => $order['price'],
+                'client' => $person($order, 'client'),
+                'provider' => $person($order, 'provider'),
+                'status' => $order['statusId'] !== null ? [
+                    'id' => (int) $order['statusId'],
+                    'status' => $order['statusName'],
+                    'realStatus' => $order['realStatus'],
                 ] : null,
-                'app' => $order->getApp(),
-                'orderType' => $order->getOrderType(),
+                'app' => $order['app'],
+                'orderType' => $order['orderType'],
             ];
         }, $orders);
     }
