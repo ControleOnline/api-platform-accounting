@@ -14,7 +14,10 @@ final class ListOrdersWithoutFiscalDocumentAction
 
     public function __invoke(Request $request): JsonResponse
     {
-        $items = $this->service->list((string) $request->query->get('documentType', ''));
+        $items = $this->service->list(
+            (string) $request->query->get('documentType', ''),
+            (string) $request->query->get('provider', ''),
+        );
 
         return new JsonResponse([
             'member' => $items,
