@@ -28,7 +28,7 @@ class NFeService extends NFePHP
     public function createNfe(Order $order, $model, $version =  '4.00')
     {
 
-        $this->model = $model;
+        $this->model = (string) $model;
         $this->version = $version;
 
         switch ($this->model) {
