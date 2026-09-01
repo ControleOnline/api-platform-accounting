@@ -164,11 +164,11 @@ class CteEmissionProcessor
 
         $cte = new InvoiceTax();
         $cte->setFile($file);
-        $cte->setInvoice($xml);
         $cte->setInvoiceKey($key !== '' ? $key : null);
         $cte->setInvoiceNumber($number);
         $cte->setInvoiceModel(57);
         $cte->setInvoiceTotal(number_format($total, 2, '.', ''));
+        $cte->syncFiscalDocumentFieldsFromXml($xml);
         $cte->setCompany($company);
         $cte->setIssuer($company);
         $cte->setIntegration($task);
