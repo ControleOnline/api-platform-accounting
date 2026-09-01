@@ -6,7 +6,7 @@ use ControleOnline\Entity\Config;
 use ControleOnline\Entity\File;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\Product;
-use ControleOnline\Entity\InvoiceTax;
+use ControleOnline\Entity\SalesInvoiceTax;
 use ControleOnline\Entity\OrderInvoiceTax;
 use Doctrine\ORM\EntityManagerInterface;
 use NFePHP\Common\Certificate;
@@ -67,7 +67,7 @@ class NFePHP
          */
 
         //$ide->forPag = '';              // 0-Pago; 1-A pagar; 2-Outros
-        $ide->mod = '57'; // Modelo do documento fiscal: 57 para identificação do CT-e
+        $ide->mod = (string) $this->model; // O modelo deve corresponder ao documento solicitado.
         $ide->serie = '1'; // Serie do CTe
         $ide->nCT = $numeroCTE; // Numero do CTe
         $ide->dhEmi = $dhEmi; // Data e hora de emissão do CT-e: Formato AAAA-MM-DDTHH:MM:DD
@@ -570,7 +570,7 @@ class NFePHP
     protected function persist(Order $order, $xml)
     {
         $provider = $order->getProvider();
-        $invoiceTax = new InvoiceTax();
+        $invoiceTax = new SalesInvoiceTax();
         $invoiceTax->setInvoice($xml);
         $invoiceTax->setInvoiceNumber($this->getNfNumber($xml));
 
