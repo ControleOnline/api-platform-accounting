@@ -20,9 +20,11 @@ final class CteXmlBuilderTest extends TestCase
                 'receita-federal-cte-serie' => '2',
                 'receita-federal-environment' => '2',
                 'receita-federal-ibge-code' => '3550308',
+                'receita-federal-cte-rntrc' => '12345678',
                 'nextNumber' => 11,
             ],
-            '5353'
+            '5932',
+            $this->cteValues()
         );
 
         self::assertStringContainsString('<mod>57</mod>', $xml);
@@ -32,7 +34,7 @@ final class CteXmlBuilderTest extends TestCase
         self::assertStringContainsString('<chave>35240112345678000190550010000001231000001234</chave>', $xml);
         self::assertStringContainsString('<chave>35240112345678000190550010000001241000001245</chave>', $xml);
         self::assertStringContainsString('<enderReme>', $xml);
-        self::assertStringContainsString('<vTPrest>30.50</vTPrest>', $xml);
+        self::assertStringContainsString('<vTPrest>10.50</vTPrest>', $xml);
         self::assertMatchesRegularExpression('/Id="CTe[0-9]{44}"/', $xml);
 
         $builder = new CteXmlBuilder();
@@ -59,9 +61,11 @@ final class CteXmlBuilderTest extends TestCase
                 'receita-federal-cte-serie' => '2',
                 'receita-federal-environment' => '2',
                 'receita-federal-ibge-code' => '3550308',
+                'receita-federal-cte-rntrc' => '12345678',
                 'nextNumber' => 11,
             ],
-            '5353'
+            '5932',
+            $this->cteValues()
         );
 
         self::assertStringContainsString('<emit><CNPJ>11222333000181</CNPJ>', $xml);
@@ -73,8 +77,9 @@ final class CteXmlBuilderTest extends TestCase
     {
         $xml = (new CteXmlBuilder())->build(
             [$this->invoice('35240112345678000190550010000001231000001234', 10.5)],
-            ['receita-federal-ibge-code' => '3550308'],
-            '5353'
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            '5932',
+            $this->cteValues()
         );
 
         self::assertStringContainsString('<indIEToma>9</indIEToma>', $xml);
@@ -91,8 +96,9 @@ final class CteXmlBuilderTest extends TestCase
 
         $xml = (new CteXmlBuilder())->build(
             [$invoice],
-            ['receita-federal-ibge-code' => '3550308'],
-            '5353'
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            '5932',
+            $this->cteValues()
         );
 
         self::assertStringContainsString('<indIEToma>1</indIEToma>', $xml);
@@ -109,8 +115,9 @@ final class CteXmlBuilderTest extends TestCase
 
         $xml = (new CteXmlBuilder())->build(
             [$invoice],
-            ['receita-federal-ibge-code' => '3550308'],
-            '5353'
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            '5932',
+            $this->cteValues()
         );
 
         self::assertStringContainsString('<indIEToma>2</indIEToma>', $xml);
@@ -121,11 +128,81 @@ final class CteXmlBuilderTest extends TestCase
     {
         $xml = (new CteXmlBuilder())->build(
             [$this->invoice('35240112345678000190550010000001231000001234', 10.5)],
-            ['receita-federal-ibge-code' => '3550308'],
-            '6932'
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            '6932',
+            $this->cteValues()
         );
 
         self::assertStringContainsString('<CFOP>6932</CFOP>', $xml);
+    }
+
+    public function testBuildInfersCteCfopFromNfeItemCfop(): void
+    {
+        $xml = (new CteXmlBuilder())->build(
+            [$this->invoiceWithXml('<NFe><infNFe><det><prod><CFOP>6152</CFOP></prod></det></infNFe></NFe>')],
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            '',
+            $this->cteValues()
+        );
+
+        self::assertStringContainsString('<CFOP>6932</CFOP>', $xml);
+    }
+
+    public function testBuildInfersTomadorFromNfeFreightMode(): void
+    {
+        $xml = (new CteXmlBuilder())->build(
+            [$this->invoiceWithXml('<NFe><infNFe><transp><modFrete>0</modFrete></transp></infNFe></NFe>')],
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            '5932',
+            [
+                'modal' => '01',
+                'tipoServico' => '0',
+                'tipoCte' => '0',
+                'tomador' => '3',
+                'valorFrete' => '10.50',
+                'valorReceber' => '10.50',
+            ]
+        );
+
+        self::assertStringContainsString('<toma>0</toma>', $xml);
+    }
+
+    public function testBuildRequiresFreightValuesInsteadOfUsingCargoValueFallback(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Valor do frete');
+
+        (new CteXmlBuilder())->build(
+            [$this->invoice('35240112345678000190550010000001231000001234', 10.5)],
+            ['receita-federal-ibge-code' => '3550308', 'receita-federal-cte-rntrc' => '12345678'],
+            '5932',
+            [
+                'modal' => '01',
+                'tipoServico' => '0',
+                'tipoCte' => '0',
+                'tomador' => '3',
+            ]
+        );
+    }
+
+    public function testBuildRequiresRntrcInsteadOfUsingFallback(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('RNTRC');
+
+        (new CteXmlBuilder())->build(
+            [$this->invoice('35240112345678000190550010000001231000001234', 10.5)],
+            ['receita-federal-ibge-code' => '3550308'],
+            '5932',
+            [
+                'modal' => '01',
+                'tipoServico' => '0',
+                'tipoCte' => '0',
+                'tomador' => '3',
+                'valorFrete' => '10.50',
+                'valorReceber' => '10.50',
+            ]
+        );
     }
 
     private function invoice(string $key, float $total): InvoiceTax
@@ -137,5 +214,39 @@ final class CteXmlBuilderTest extends TestCase
         $invoice->setInvoiceTotal(number_format($total, 2, '.', ''));
 
         return $invoice;
+    }
+
+    private function invoiceWithXml(string $xml): InvoiceTax
+    {
+        return new class ($xml) extends InvoiceTax {
+            public function __construct(private string $xml)
+            {
+                parent::__construct();
+                $this->setInvoiceKey('35240112345678000190550010000001231000001234');
+                $this->setInvoiceNumber(1);
+                $this->setInvoiceModel(55);
+                $this->setInvoiceTotal('10.50');
+            }
+
+            public function getInvoice()
+            {
+                return $this->xml;
+            }
+        };
+    }
+
+    /**
+     * @return array{modal: string, tipoServico: string, tipoCte: string, tomador: string, valorFrete: string, valorReceber: string}
+     */
+    private function cteValues(): array
+    {
+        return [
+            'modal' => '01',
+            'tipoServico' => '0',
+            'tipoCte' => '0',
+            'tomador' => '3',
+            'valorFrete' => '10.50',
+            'valorReceber' => '10.50',
+        ];
     }
 }

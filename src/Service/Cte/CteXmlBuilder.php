@@ -32,14 +32,16 @@ class CteXmlBuilder
         $ide = $this->buildIde($invoices, $fiscal, $cfop, $extra);
         $make->tagide($ide);
 
-        // toma3 - tomador 3 = destinatário
+        $tomadorCode = $this->tomadorCode($first, $extra);
+
+        // toma3 - tomador 0/1/2/3 definido pelo payload validado
         $toma3 = new \stdClass();
-        $toma3->toma = '3';
+        $toma3->toma = $tomadorCode;
         $make->tagtoma3($toma3);
 
         // compl
         $compl = new \stdClass();
-        $compl->xObs = 'CTe gerado via ControleOnline';
+        $compl->xObs = 'CTe gerado via ControleOnline.com';
         $make->tagcompl($compl);
 
         // emit
@@ -57,14 +59,17 @@ class CteXmlBuilder
         $make->tagdest($dest);
         $make->tagenderDest($this->buildEnder($first->getClientAddress() ?: $first->getAddress()));
 
-        // vPrest
-        $total = 0.0;
+        $cargoValue = 0.0;
         foreach ($invoices as $inv) {
-            $total += (float) ($inv->getInvoiceTotal() ?? 0);
+            $cargoValue += (float) ($inv->getInvoiceTotal() ?? 0);
         }
+        $freightValue = $this->requiredMoneyValue($extra['valorFrete'] ?? null, 'Valor do frete');
+        $receivableValue = $this->requiredMoneyValue($extra['valorReceber'] ?? null, 'Valor a receber');
+
+        // vPrest
         $vPrest = new \stdClass();
-        $vPrest->vTPrest = number_format($total, 2, '.', '');
-        $vPrest->vRec = number_format($total, 2, '.', '');
+        $vPrest->vTPrest = number_format($freightValue, 2, '.', '');
+        $vPrest->vRec = number_format($receivableValue, 2, '.', '');
         $make->tagvPrest($vPrest);
 
         // imp
@@ -78,7 +83,7 @@ class CteXmlBuilder
         // infCTeNorm
         $make->taginfCTeNorm();
         $infCarga = new \stdClass();
-        $infCarga->vCarga = number_format($total, 2, '.', '');
+        $infCarga->vCarga = number_format($cargoValue, 2, '.', '');
         $infCarga->proPred = 'MERCADORIA';
         $make->taginfCarga($infCarga);
         $infQ = new \stdClass();
@@ -100,7 +105,10 @@ class CteXmlBuilder
         $infModal->versaoModal = '4.00';
         $make->taginfModal($infModal);
         $rodo = new \stdClass();
-        $rntrc = preg_replace('/\D+/', '', (string) ($extra['rntrc'] ?? $fiscal['rntrc'] ?? $fiscal['receita-federal-cte-rntrc'] ?? '00000000')) ?: '00000000';
+        $rntrc = $this->requiredDigits(
+            $fiscal['rntrc'] ?? $fiscal['receita-federal-cte-rntrc'] ?? null,
+            'RNTRC'
+        );
         $rodo->RNTRC = $rntrc;
         $make->tagrodo($rodo);
         $make->taginfRespTec($this->buildInfRespTec($fiscal));
@@ -140,6 +148,8 @@ class CteXmlBuilder
     private function buildIde(array $invoices, array $fiscal, string $cfop, array $extra): \stdClass
     {
         $first = $invoices[0];
+        $originAddress = $first->getProviderAddress() ?: $first->getAddress();
+        $destinationAddress = $first->getClientAddress() ?: $first->getAddress();
         $ide = new \stdClass();
         $ibgeCode = $this->ibgeCode($fiscal);
         $ide->cUF = substr($ibgeCode, 0, 2);
@@ -154,22 +164,22 @@ class CteXmlBuilder
         $ide->tpEmis = '1';
         $ide->cDV = '0';
         $ide->tpAmb = (string) ($fiscal['receita-federal-environment'] ?? '2');
-        $ide->tpCTe = '0';
+        $ide->tpCTe = $this->requiredOption($extra['tipoCte'] ?? null, 'Tipo do CT-e', ['0', '1', '2', '3']);
         $ide->procEmi = '0';
         $ide->verProc = 'controleonline-1.0';
         $ide->cMunEnv = $ibgeCode;
-        $ide->xMunEnv = $this->cityName($first->getAddress());
-        $ide->UFEnv = $this->uf($first->getAddress());
-        $ide->modal = '01';
-        $ide->tpServ = '0';
-        $ide->cMunIni = $ide->cMunEnv;
-        $ide->xMunIni = $ide->xMunEnv;
-        $ide->UFIni = $ide->UFEnv;
-        $ide->cMunFim = $ide->cMunEnv;
-        $ide->xMunFim = $ide->xMunEnv;
-        $ide->UFFim = $ide->UFEnv;
+        $ide->xMunEnv = $this->cityName($originAddress);
+        $ide->UFEnv = $this->uf($originAddress);
+        $ide->modal = $this->requiredOption($extra['modal'] ?? null, 'Modal', ['01', '02', '03', '04', '05', '06']);
+        $ide->tpServ = $this->requiredOption($extra['tipoServico'] ?? null, 'Tipo de serviço', ['0', '1', '2', '3', '4']);
+        $ide->cMunIni = $this->municipalityCode($originAddress, $ibgeCode);
+        $ide->xMunIni = $this->cityName($originAddress);
+        $ide->UFIni = $this->uf($originAddress);
+        $ide->cMunFim = $this->municipalityCode($destinationAddress, $ibgeCode);
+        $ide->xMunFim = $this->cityName($destinationAddress);
+        $ide->UFFim = $this->uf($destinationAddress);
         $ide->retira = '1';
-        $ide->indIEToma = $this->tomadorIeIndicator($first->getClient());
+        $ide->indIEToma = $this->tomadorIeIndicator($this->tomador($first, $this->tomadorCode($first, $extra)));
         return $ide;
     }
 
@@ -252,17 +262,131 @@ class CteXmlBuilder
         return preg_replace('/\D+/', '', $stateRegistration) ?: '';
     }
 
+    private function tomador(InvoiceTax $invoice, string $tomadorCode): ?People
+    {
+        return match ($tomadorCode) {
+            '0' => $invoice->getProvider() ?: $invoice->getIssuer(),
+            '1', '2' => $invoice->getCarrier() ?: $invoice->getProvider() ?: $invoice->getIssuer(),
+            '3' => $invoice->getClient(),
+            default => null,
+        };
+    }
+
+    private function tomadorCode(InvoiceTax $invoice, array $extra): string
+    {
+        $inferred = $this->inferTomadorFromNfe($invoice);
+        if ($inferred !== null) {
+            return $inferred;
+        }
+
+        return $this->requiredOption($extra['tomador'] ?? null, 'Tomador', ['0', '1', '2', '3']);
+    }
+
     private function cteCfop(InvoiceTax $invoice, string $cfop): string
     {
-        $normalized = preg_replace('/\D+/', '', $cfop) ?: '';
+        $normalized = preg_replace('/\D+/', '', $cfop);
+        $normalized = is_string($normalized) ? $normalized : '';
+        $inferred = $this->inferCteCfopFromNfe($invoice);
+        if ($inferred !== null) {
+            return $inferred;
+        }
+
         if (in_array($normalized, ['5932', '6932'], true)) {
             return $normalized;
         }
 
-        $originUf = $this->uf($invoice->getProviderAddress() ?: $invoice->getAddress());
-        $destinationUf = $this->uf($invoice->getClientAddress() ?: $invoice->getAddress());
+        throw new \InvalidArgumentException('CFOP do CT-e não pôde ser inferido pelas NF-es; informe o CFOP no front.');
+    }
 
-        return $originUf !== '' && $destinationUf !== '' && $originUf !== $destinationUf ? '6932' : '5932';
+    private function inferCteCfopFromNfe(InvoiceTax $invoice): ?string
+    {
+        $xml = $this->invoiceXml($invoice);
+        if (!is_string($xml) || trim($xml) === '') {
+            return null;
+        }
+
+        preg_match_all('/<CFOP>(\d{4})<\/CFOP>/i', $xml, $matches);
+        $cfops = array_values(array_unique($matches[1] ?? []));
+        if ($cfops === []) {
+            return null;
+        }
+
+        $directions = array_values(array_unique(array_map(
+            static fn(string $cfop): string => substr($cfop, 0, 1),
+            $cfops
+        )));
+        if ($directions === ['5']) {
+            return '5932';
+        }
+        if ($directions === ['6']) {
+            return '6932';
+        }
+
+        return null;
+    }
+
+    private function inferTomadorFromNfe(InvoiceTax $invoice): ?string
+    {
+        $xml = $this->invoiceXml($invoice);
+        if (!is_string($xml) || trim($xml) === '') {
+            return null;
+        }
+
+        if (!preg_match('/<modFrete>(\d)<\/modFrete>/i', $xml, $match)) {
+            return null;
+        }
+
+        return match ($match[1]) {
+            '0' => '0',
+            '1' => '3',
+            default => null,
+        };
+    }
+
+    private function invoiceXml(InvoiceTax $invoice): ?string
+    {
+        try {
+            $xml = $invoice->getInvoice();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return is_string($xml) ? $xml : null;
+    }
+
+    private function requiredMoneyValue(mixed $value, string $label): float
+    {
+        $normalized = str_replace(',', '.', preg_replace('/[^\d,.-]+/', '', (string) $value));
+        if ($normalized === '' || !is_numeric($normalized)) {
+            throw new \InvalidArgumentException(sprintf('%s é obrigatório para emissão do CT-e.', $label));
+        }
+
+        return (float) $normalized;
+    }
+
+    private function requiredOption(mixed $value, string $label, array $allowed): string
+    {
+        $normalized = preg_replace('/\D+/', '', (string) $value);
+        $normalized = is_string($normalized) ? $normalized : '';
+        if ($normalized === '') {
+            throw new \InvalidArgumentException(sprintf('%s é obrigatório para emissão do CT-e.', $label));
+        }
+        if (!in_array($normalized, $allowed, true)) {
+            throw new \InvalidArgumentException(sprintf('%s inválido para emissão do CT-e.', $label));
+        }
+
+        return $normalized;
+    }
+
+    private function requiredDigits(mixed $value, string $label): string
+    {
+        $normalized = preg_replace('/\D+/', '', (string) $value);
+        $normalized = is_string($normalized) ? $normalized : '';
+        if ($normalized === '') {
+            throw new \InvalidArgumentException(sprintf('%s é obrigatório para emissão do CT-e.', $label));
+        }
+
+        return $normalized;
     }
 
     private function buildEnder(?Address $address): \stdClass
@@ -271,7 +395,7 @@ class CteXmlBuilder
         $ender->xLgr = $this->streetName($address);
         $ender->nro = $this->streetNumber($address);
         $ender->xBairro = $this->districtName($address);
-        $ender->cMun = (string) ($this->getFiscalValue($address, 'cMun') ?? '3550308');
+        $ender->cMun = $this->municipalityCode($address, '3550308');
         $ender->xMun = $this->cityName($address);
         $ender->CEP = $this->postalCode($address);
         $ender->UF = $this->uf($address);
@@ -339,6 +463,21 @@ class CteXmlBuilder
     private function getFiscalValue(?Address $address, string $key): ?string
     {
         return null;
+    }
+
+    private function municipalityCode(?Address $address, string $fallback): string
+    {
+        $street = $address && method_exists($address, 'getStreet') ? $address->getStreet() : null;
+        $district = is_object($street) && method_exists($street, 'getDistrict') ? $street->getDistrict() : null;
+        $city = is_object($district) && method_exists($district, 'getCity') ? $district->getCity() : null;
+        if (is_object($city) && method_exists($city, 'getIbge')) {
+            $code = preg_replace('/\D+/', '', (string) $city->getIbge());
+            if ($code !== '') {
+                return $code;
+            }
+        }
+
+        return $fallback;
     }
 
     private function streetName(?Address $address): string
