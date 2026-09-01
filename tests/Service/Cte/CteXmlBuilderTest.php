@@ -28,7 +28,7 @@ final class CteXmlBuilderTest extends TestCase
         self::assertStringContainsString('<mod>57</mod>', $xml);
         self::assertStringContainsString('<nCT>11</nCT>', $xml);
         self::assertStringContainsString('<serie>2</serie>', $xml);
-        self::assertStringContainsString('<CFOP>5353</CFOP>', $xml);
+        self::assertStringContainsString('<CFOP>5932</CFOP>', $xml);
         self::assertStringContainsString('<chave>35240112345678000190550010000001231000001234</chave>', $xml);
         self::assertStringContainsString('<chave>35240112345678000190550010000001241000001245</chave>', $xml);
         self::assertStringContainsString('<enderReme>', $xml);
@@ -115,6 +115,17 @@ final class CteXmlBuilderTest extends TestCase
 
         self::assertStringContainsString('<indIEToma>2</indIEToma>', $xml);
         self::assertStringContainsString('<IE>ISENTO</IE>', $xml);
+    }
+
+    public function testBuildKeepsValidCteCfop(): void
+    {
+        $xml = (new CteXmlBuilder())->build(
+            [$this->invoice('35240112345678000190550010000001231000001234', 10.5)],
+            ['receita-federal-ibge-code' => '3550308'],
+            '6932'
+        );
+
+        self::assertStringContainsString('<CFOP>6932</CFOP>', $xml);
     }
 
     private function invoice(string $key, float $total): InvoiceTax

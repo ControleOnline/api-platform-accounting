@@ -144,7 +144,7 @@ class CteXmlBuilder
         $ibgeCode = $this->ibgeCode($fiscal);
         $ide->cUF = substr($ibgeCode, 0, 2);
         $ide->cCT = str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT);
-        $ide->CFOP = $cfop;
+        $ide->CFOP = $this->cteCfop($first, $cfop);
         $ide->natOp = $extra['natureza'] ?? 'PRESTACAO DE SERVICO DE TRANSPORTE';
         $ide->mod = '57';
         $ide->serie = (string) ($fiscal['receita-federal-cte-serie'] ?? '1');
@@ -250,6 +250,19 @@ class CteXmlBuilder
         }
 
         return preg_replace('/\D+/', '', $stateRegistration) ?: '';
+    }
+
+    private function cteCfop(InvoiceTax $invoice, string $cfop): string
+    {
+        $normalized = preg_replace('/\D+/', '', $cfop) ?: '';
+        if (in_array($normalized, ['5932', '6932'], true)) {
+            return $normalized;
+        }
+
+        $originUf = $this->uf($invoice->getProviderAddress() ?: $invoice->getAddress());
+        $destinationUf = $this->uf($invoice->getClientAddress() ?: $invoice->getAddress());
+
+        return $originUf !== '' && $destinationUf !== '' && $originUf !== $destinationUf ? '6932' : '5932';
     }
 
     private function buildEnder(?Address $address): \stdClass
