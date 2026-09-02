@@ -260,40 +260,58 @@ class NFePHP
     }
 
     //prod OBRIGATÓRIA
-    protected function makeProds(Order $order)
+    protected function makeProds(array|Order $orders)
     {
-        $orderProducts  = $order->getOrderProducts();
+        $orders = $orders instanceof Order ? [$orders] : $orders;
         $item = 1;
-        foreach ($orderProducts as $orderProducts) {
-            $product = $orderProducts->getProduct();
+        foreach ($orders as $order) {
+            foreach ($order->getOrderProducts() as $orderProduct) {
+                $product = $orderProduct->getProduct();
+                if (!$product instanceof Product) {
+                    continue;
+                }
+                $quantity = (float) $orderProduct->getQuantity();
+                $total = (float) $orderProduct->getTotal();
+                if ($total <= 0) {
+                    $total = $quantity * (float) $orderProduct->getPrice();
+                }
+                $unitPrice = $quantity > 0 ? $total / $quantity : (float) $orderProduct->getPrice();
+                $unit = 'UN';
+                try {
+                    $unit = $product->getProductUnit()?->getProductUnit() ?: 'UN';
+                } catch (\Throwable) {
+                    $unit = 'UN';
+                }
 
-            $std = new \stdClass();
-            $std->item = $item;
-            $std->cProd = '00341';
-            $std->cEAN = 'SEM GTIN';
-            $std->cEANTrib = 'SEM GTIN';
-            $std->xProd = 'Produto com serviço';
-            $std->NCM = '96081000';
-            $std->CFOP = '5933';
-            $std->uCom = 'JG';
-            $std->uTrib = 'JG';
-            $std->cBarra = NULL;
-            $std->cBarraTrib = NULL;
-            $std->qCom = '1';
-            $std->qTrib = '1';
-            $std->vUnCom = '200';
-            $std->vUnTrib = '200';
-            $std->vProd = '200';
-            $std->vDesc = NULL;
-            $std->vOutro = NULL;
-            $std->vSeg = NULL;
-            $std->vFrete = NULL;
-            $std->cBenef = NULL;
-            $std->xPed = NULL;
-            $std->nItemPed = NULL;
-            $std->indTot = 1;
-            $this->make->tagprod($std);
-            $this->makeImpostos($product, $item);
+                $std = new \stdClass();
+                $std->item = $item;
+                $std->cProd = $product->getSku() ?: (string) $product->getId();
+                $std->cEAN = 'SEM GTIN';
+                $std->cEANTrib = 'SEM GTIN';
+                $std->xProd = $product->getProduct() ?: $product->getDescription();
+                $std->NCM = '96081000';
+                $std->CFOP = '5933';
+                $std->uCom = $unit;
+                $std->uTrib = $unit;
+                $std->cBarra = null;
+                $std->cBarraTrib = null;
+                $std->qCom = $quantity;
+                $std->qTrib = $quantity;
+                $std->vUnCom = round($unitPrice, 2);
+                $std->vUnTrib = round($unitPrice, 2);
+                $std->vProd = round($total, 2);
+                $std->vDesc = null;
+                $std->vOutro = null;
+                $std->vSeg = null;
+                $std->vFrete = null;
+                $std->cBenef = null;
+                $std->xPed = (string) $order->getId();
+                $std->nItemPed = $item;
+                $std->indTot = 1;
+                $this->make->tagprod($std);
+                $this->makeImpostos($product, $item);
+                $item++;
+            }
         }
     }
     protected function makeImpostos(Product $product, $item)
@@ -491,7 +509,7 @@ class NFePHP
     }
 
 
-    protected function makePag(Order $order)
+    protected function makePag(array|Order $orders)
     {
         //pag OBRIGATÓRIA
         $std = new \stdClass();
@@ -500,14 +518,20 @@ class NFePHP
     }
 
 
-    protected function makedetPag(Order $order)
+    protected function makedetPag(array|Order $orders)
     {
         //detPag OBRIGATÓRIA
+        $orders = $orders instanceof Order ? [$orders] : $orders;
+        $total = array_reduce(
+            $orders,
+            static fn (float $sum, Order $order): float => $sum + (float) $order->getPrice(),
+            0.0
+        );
         $std = new \stdClass();
         $std->indPag = '0';
         $std->xPag = NULL;
         $std->tPag = '01';
-        $std->vPag = 2.01;
+        $std->vPag = round($total, 2);
         $this->make->tagdetpag($std);
     }
     protected function makeInfRespTec()
