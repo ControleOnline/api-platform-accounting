@@ -383,7 +383,7 @@ class NFePHP
         if (!$certContent)
             throw new \Exception("Key content on table files is empty " . $certPath, 1);
 
-        return $this->readCertificate($certContent->getContent(), $certPassword);
+        return $this->readCertificate($certContent->getContent(true), $certPassword);
     }
 
     private function readCertificate(string $content, string $password): Certificate
