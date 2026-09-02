@@ -39,6 +39,21 @@ final class DownloadNFServiceTest extends TestCase
         self::assertSame('NFE-9-45.pdf', $service->getDownloadFilename($invoiceTax, 'pdf'));
     }
 
+    public function testNfcePdfFilenameUsesNfcePrefixAndXmlNumber(): void
+    {
+        $service = new DownloadNFService($this->createKernel());
+        $invoiceTax = new class extends InvoiceTax {
+            public function getInvoice()
+            {
+                return '<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe"><NFe><infNFe><ide><mod>65</mod><serie>4</serie><nNF>9</nNF></ide></infNFe></NFe></nfeProc>';
+            }
+        };
+        $invoiceTax->setInvoiceModel(65);
+        $invoiceTax->setInvoiceNumber(999);
+
+        self::assertSame('NFCE-4-9.pdf', $service->getDownloadFilename($invoiceTax, 'pdf'));
+    }
+
     private function createKernel(): KernelInterface
     {
         return $this->createStub(KernelInterface::class);

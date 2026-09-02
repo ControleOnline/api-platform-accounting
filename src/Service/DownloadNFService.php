@@ -5,7 +5,9 @@ namespace ControleOnline\Service;
 use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Entity\People;
 use NFePHP\DA\CTe\Dacte;
+use NFePHP\DA\NFe\Danfce;
 use NFePHP\DA\NFe\Danfe;
+use NFePHP\DA\NFSe\Danfse;
 use NFePHP\POS\DanfcePos;
 use NFePHP\POS\PrintConnectors\Base64PrintConnector;
 use Symfony\Component\HttpFoundation\HeaderUtils;
@@ -93,7 +95,7 @@ class DownloadNFService
             return $this->filenames['pdf'];
         }
 
-        $prefix = $model === 57 ? 'CTE' : 'NFE';
+        $prefix = $model === 57 ? 'CTE' : ($model === 65 ? 'NFCE' : 'NFE');
 
         return sprintf('%s-%s-%s.pdf', $prefix, $this->sanitizeFilenamePart($series), $this->sanitizeFilenamePart($number));
     }
@@ -120,12 +122,28 @@ class DownloadNFService
                 return $dacte->render($logo);
             }
 
+            if ($model === 65) {
+                return (new Danfce($xml))->render($logo);
+            }
+
+            if ($model === 0 && stripos($xml, '<CompNfse') !== false) {
+                return (new Danfse($xml))->render($logo);
+            }
+
             $danfe = new Danfe($xml);
             return $danfe->render($logo);
         } catch (\Throwable $legacy) {
             if ($model === 57) {
                 $dacte = new Dacte($xml, 'P', 'A4', $logo, 'I', '');
                 return $dacte->render($logo);
+            }
+
+            if ($model === 65) {
+                return (new Danfce($xml))->render($logo);
+            }
+
+            if ($model === 0 && stripos($xml, '<CompNfse') !== false) {
+                return (new Danfse($xml))->render($logo);
             }
 
             $danfe = new Danfe($xml, 'P', 'A4', $logo, 'I', '');
@@ -137,6 +155,15 @@ class DownloadNFService
     {
         if (stripos($xml, '<CTe') !== false || stripos($xml, '<cteProc') !== false) {
             return 57;
+        }
+
+        $model = (int) $this->extractXmlValue($xml, 'mod');
+        if ($model === 65) {
+            return 65;
+        }
+
+        if (stripos($xml, '<CompNfse') !== false) {
+            return 0;
         }
 
         return 55;
