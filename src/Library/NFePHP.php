@@ -404,7 +404,7 @@ class NFePHP
                 file_put_contents($pfx, $content);
                 file_put_contents($pass, $password);
                 $command = sprintf(
-                    'openssl pkcs12 -legacy -in %s -passin file:%s -nodes -out %s 2>/dev/null',
+                    '/usr/bin/openssl pkcs12 -legacy -in %s -passin file:%s -nodes -out %s 2>/dev/null',
                     escapeshellarg($pfx),
                     escapeshellarg($pass),
                     escapeshellarg($pem)
