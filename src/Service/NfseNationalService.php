@@ -28,7 +28,10 @@ final class NfseNationalService extends NFePHP
             throw new \RuntimeException('Emitente deve possuir CNPJ e endereço para NFS-e.');
         }
         $city = $address->getStreet()->getDistrict()->getCity();
-        $cityCode = $this->getCodMunicipio($city->getCity(), $city->getState()->getUf());
+        $cityCode = $this->configValue($provider, 'receita-federal-ibge-code');
+        if ($cityCode === null || !preg_match('/^\d{7}$/', $cityCode)) {
+            throw new \RuntimeException('O código IBGE do município de emissão da NFS-e deve estar configurado com 7 dígitos.');
+        }
         $series = $this->configValue($provider, 'receita-federal-nfse-serie');
         if ($series === null || $series === '') {
             throw new \RuntimeException('A série DPS da NFS-e não está configurada.');
