@@ -18,6 +18,11 @@ class InvoiceTaxXmlParser
                 return null;
             }
 
+            $infNfse = $this->firstXPath($xml, '//*[local-name()="infNFSe"]');
+            if ($infNfse instanceof SimpleXMLElement) {
+                return $this->parseNfseXml($xml, $infNfse);
+            }
+
             $infNFe = $this->firstXPath($xml, '//*[local-name()="infNFe"]');
             if (!$infNFe instanceof SimpleXMLElement) {
                 return null;
@@ -56,6 +61,29 @@ class InvoiceTaxXmlParser
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    private function parseNfseXml(SimpleXMLElement $xml, SimpleXMLElement $infNfse): ?array
+    {
+        $attributes = $infNfse->attributes();
+        $key = preg_replace('/^NFS/i', '', (string) ($attributes['Id'] ?? '')) ?: '';
+        $number = $this->text($this->firstXPath($infNfse, './/*[local-name()="nNFSe"]'));
+        $series = $this->text($this->firstXPath($infNfse, './/*[local-name()="serie"]'));
+        $total = $this->text($this->firstXPath($infNfse, './/*[local-name()="vServ"]'));
+        if ($key === '' || $number === '') {
+            return null;
+        }
+
+        return [
+            'key' => $key,
+            'number' => $number,
+            'series' => $series,
+            'model' => '99',
+            'total' => $total ?: null,
+            'provider' => $this->parseParty($this->firstXPath($infNfse, './/*[local-name()="prest"]'), ''),
+            'client' => $this->parseParty($this->firstXPath($infNfse, './/*[local-name()="toma"]'), ''),
+            'carrier' => null,
+        ];
     }
 
     /**
@@ -131,7 +159,7 @@ class InvoiceTaxXmlParser
             'document' => $this->digits($document),
             'name' => $this->text($this->child($party, 'xNome')),
             'stateRegistration' => $this->text($this->child($party, 'IE')),
-            'address' => $this->parseAddress($this->child($party, $addressTag)),
+            'address' => $addressTag !== '' ? $this->parseAddress($this->child($party, $addressTag)) : [],
         ];
     }
 
