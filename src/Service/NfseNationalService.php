@@ -103,6 +103,20 @@ final class NfseNationalService extends NFePHP
         }
         $prest = $xml->createElement('prest');
         $prest->appendChild($xml->createElement('CNPJ', preg_replace('/\D+/', '', $provider->getOneDocument()->getDocument())));
+        $prest->appendChild($xml->createElement('xNome', $provider->getName()));
+        $end = $xml->createElement('end');
+        $endNac = $xml->createElement('endNac');
+        $endNac->appendChild($xml->createElement('cMun', $cityCode));
+        $endNac->appendChild($xml->createElement('CEP', preg_replace('/\D+/', '', (string) $address->getStreet()->getCep()->getCep())));
+        $end->appendChild($endNac);
+        $prest->appendChild($end);
+        $taxRegime = $this->configValue($provider, 'receita-federal-tax-regime');
+        if ($taxRegime === null || !in_array($taxRegime, ['1', '2', '3'], true)) {
+            throw new \RuntimeException('O regime tributário do emitente não está configurado para NFS-e.');
+        }
+        $regTrib = $xml->createElement('regTrib');
+        $regTrib->appendChild($xml->createElement('opSimpNac', $taxRegime));
+        $prest->appendChild($regTrib);
         $inf->appendChild($prest);
         $toma = $xml->createElement('toma');
         $toma->appendChild($xml->createElement($tag, $doc));
