@@ -48,7 +48,7 @@ class CreateNFeAction
             }
             $orders = array_map(static fn (int $id): Order => $ordersById[$id], $orderIds);
             foreach ($orders as $order) {
-                if ($order->getProvider() !== $data->getProvider()) {
+                if ((int) $order->getProvider()?->getId() !== (int) $data->getProvider()?->getId()) {
                     throw new BadRequestHttpException('Todos os pedidos devem pertencer à mesma empresa corrente.');
                 }
             }
