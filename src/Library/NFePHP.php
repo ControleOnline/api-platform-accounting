@@ -216,7 +216,10 @@ class NFePHP
         $enderEmit->CEP = $providerAddress->getStreet()->getCep()->getCep(); // CEP
         $enderEmit->UF =  $providerAddress->getStreet()->getDistrict()->getCity()->getState()->getUf(); // Sigla UF
         $enderEmit->cMun = $this->getCodMunicipio($enderEmit->xMun, $enderEmit->UF); // Código do município (utilizar a tabela do IBGE)
-        $enderEmit->fone = $provider->getPhone()[0]->getDdd() . $provider->getPhone()[0]->getPhone(); // Fone
+        $phone = $provider->getPhone()[0] ?? null;
+        if ($phone) {
+            $enderEmit->fone = $phone->getDdd() . $phone->getPhone(); // Fone
+        }
         $this->make->tagenderemit($enderEmit);
     }
     //dest OPCIONAL
