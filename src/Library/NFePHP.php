@@ -167,15 +167,17 @@ class NFePHP
     {
         $provider = $order->getProvider();
         $document = $provider->getOneDocument();
+        $stateRegistration = $this->configValue($provider, 'receita-federal-state-registration');
+        $taxRegime = (int) ($this->configValue($provider, 'receita-federal-tax-regime') ?: 1);
 
         $std = new \stdClass();
-        $std->IE = '111111111';
+        $std->IE = $stateRegistration ?: null;
         $std->IEST = null;
-        //$std->IM = '95095870';
-        $std->CNAE = '4642701';
-        $std->CRT = 1;
-        $std->CNPJ = '99999999999999';
-        //$std->CPF = '12345678901'; //NÃO PASSE TAGS QUE NÃO EXISTEM NO CASO
+        $std->CRT = $taxRegime;
+        $std->CNPJ = $document?->getDocument();
+        if (!$std->CNPJ) {
+            throw new \RuntimeException('CNPJ do emitente não cadastrado.');
+        }
 
         $emit = new \stdClass();
         $emit->CNPJ = $document->getDOcument(); // CNPJ do emitente
@@ -369,30 +371,32 @@ class NFePHP
     {
         $provider = $order->getProvider();
 
-        $dacteKey = $this->manager->getRepository(Config::class)->findOneBy([
-            'people'  => $provider,
-            'configKey' => 'cert-file'
-        ]);
-
-        $dacteKeyPass = $this->manager->getRepository(Config::class)->findOneBy([
-            'people'  => $provider,
-            'configKey' => 'cert-pass'
-        ]);
-        if (!$dacteKey || !$dacteKeyPass)
-            throw new \Exception("Key cert is required", 1);
-
-        $certPath = $dacteKey->getConfigValue();
+        $certPath = $this->configValue($provider, 'receita-federal-certificate-file');
+        $certPassword = $this->configValue($provider, 'receita-federal-certificate-password');
+        if (!$certPath || !$certPassword) {
+            throw new \Exception('Certificado fiscal e senha são obrigatórios.', 1);
+        }
 
         if (! $certPath)
             throw new \Exception("Key cert path is invalid: " . $certPath, 1);
-        $certContent = $this->manager->getRepository(File::class)->find($dacteKey->getConfigValue());
+        $certContent = $this->manager->getRepository(File::class)->find((int) preg_replace('/\D+/', '', $certPath));
         if (!$certContent)
             throw new \Exception("Key content on table files is empty " . $certPath, 1);
 
         return Certificate::readPfx(
             $certContent->getContent(),
-            $dacteKeyPass->getConfigValue()
+            $certPassword
         );
+    }
+
+    private function configValue($provider, string $key): ?string
+    {
+        $config = $this->manager->getRepository(Config::class)->findOneBy([
+            'people' => $provider,
+            'configKey' => $key,
+        ]);
+
+        return $config ? trim((string) $config->getConfigValue()) : null;
     }
 
     protected function getSignData(Order $order)
