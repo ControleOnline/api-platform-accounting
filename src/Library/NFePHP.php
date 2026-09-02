@@ -42,7 +42,7 @@ class NFePHP
         $stateEntity = $cityEntity->getState();
         $city = $cityEntity->getCity();
         $uf = $stateEntity->getUf();
-        $stateCode = (string) $stateEntity->getCodIbge();
+        $stateCode = (string) $stateEntity->getIbge();
         $numeroCTE = $this->getLastFiscalNumber($provider);
 
         // CUIDADO: Observe que mesmo os parâmetros fixados abaixo devem ser preenchidos conforme os dados do CT-e, estude a composição da CHAVE para saber o que vai em cada campo
