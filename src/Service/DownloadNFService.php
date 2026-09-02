@@ -7,7 +7,6 @@ use ControleOnline\Entity\People;
 use NFePHP\DA\CTe\Dacte;
 use NFePHP\DA\NFe\Danfce;
 use NFePHP\DA\NFe\Danfe;
-use NFePHP\DA\NFSe\Danfse;
 use NFePHP\POS\DanfcePos;
 use NFePHP\POS\PrintConnectors\Base64PrintConnector;
 use Symfony\Component\HttpFoundation\HeaderUtils;
@@ -126,10 +125,6 @@ class DownloadNFService
                 return (new Danfce($xml))->render($logo);
             }
 
-            if ($model === 0 && stripos($xml, '<CompNfse') !== false) {
-                return (new Danfse($xml))->render($logo);
-            }
-
             $danfe = new Danfe($xml);
             return $danfe->render($logo);
         } catch (\Throwable $legacy) {
@@ -140,10 +135,6 @@ class DownloadNFService
 
             if ($model === 65) {
                 return (new Danfce($xml))->render($logo);
-            }
-
-            if ($model === 0 && stripos($xml, '<CompNfse') !== false) {
-                return (new Danfse($xml))->render($logo);
             }
 
             $danfe = new Danfe($xml, 'P', 'A4', $logo, 'I', '');
