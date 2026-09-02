@@ -42,7 +42,8 @@ final class NfseNationalService extends NFePHP
         if (strlen($cnpj) !== 14) {
             throw new \RuntimeException('O emitente da NFS-e deve possuir CNPJ válido.');
         }
-        $id = sprintf('DPS%s1%s%s%015d', str_pad($cityCode, 7, '0', STR_PAD_LEFT), $cnpj, $series, $number);
+        // The national DPS identifier uses 1 for CPF and 2 for CNPJ.
+        $id = sprintf('DPS%s2%s%s%015d', str_pad($cityCode, 7, '0', STR_PAD_LEFT), $cnpj, $series, $number);
         if (strlen($id) !== 45) {
             throw new \RuntimeException('Não foi possível formar o identificador DPS válido.');
         }
