@@ -84,8 +84,8 @@ class NFeService extends NFePHP
         $this->makeIde($order);
         $this->makeEmit($order);
         $this->makeDest($order);
-        $this->makePag($orders ?: [$order]);
-        $this->makedetPag($orders ?: [$order]);
+        $this->makePag($order);
+        $this->makedetPag($order);
         $this->makeTomador($order);
     }
 
@@ -98,7 +98,7 @@ class NFeService extends NFePHP
         $this->makeDest($order);
         $this->makeProds($orders ?: [$order]);
         $this->makeTransp($order);
-        $this->makePag($order);
-        $this->makedetPag($order);
+        $this->makePag($orders ?: [$order]);
+        $this->makedetPag($orders ?: [$order]);
     }
 }
