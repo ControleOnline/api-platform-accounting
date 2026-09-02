@@ -109,10 +109,11 @@ final class NfseNationalService extends NFePHP
         $prest->appendChild($xml->createElement('CNPJ', preg_replace('/\D+/', '', $provider->getOneDocument()->getDocument())));
         $prest->appendChild($xml->createElement('xNome', $provider->getName()));
         $end = $xml->createElement('end');
-        $endNac = $xml->createElement('endNac');
-        $endNac->appendChild($xml->createElement('cMun', $cityCode));
-        $endNac->appendChild($xml->createElement('CEP', preg_replace('/\D+/', '', (string) $address->getStreet()->getCep()->getCep())));
-        $end->appendChild($endNac);
+        $end->appendChild($xml->createElement('xLgr', $address->getStreet()->getStreet()));
+        $end->appendChild($xml->createElement('nro', (string) $address->getNumber()));
+        $end->appendChild($xml->createElement('xBairro', $address->getStreet()->getDistrict()->getDistrict()));
+        $end->appendChild($xml->createElement('cMun', $cityCode));
+        $end->appendChild($xml->createElement('CEP', preg_replace('/\D+/', '', (string) $address->getStreet()->getCep()->getCep())));
         $prest->appendChild($end);
         $taxRegime = $this->configValue($provider, 'receita-federal-tax-regime');
         if ($taxRegime === null || !in_array($taxRegime, ['1', '2', '3'], true)) {
