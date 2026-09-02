@@ -143,6 +143,12 @@ final class NfseNationalService extends NFePHP
         $service = $xml->createElement('vServPrest');
         $service->appendChild($xml->createElement('vServ', number_format((float) $value, 2, '.', '')));
         $values->appendChild($service);
+        $trib = $xml->createElement('trib');
+        $tribMun = $xml->createElement('tribMun');
+        $tribMun->appendChild($xml->createElement('tribISSQN', '1'));
+        $tribMun->appendChild($xml->createElement('tpRetISSQN', '1'));
+        $trib->appendChild($tribMun);
+        $values->appendChild($trib);
         $inf->appendChild($values);
         return $xml->saveXML();
     }
