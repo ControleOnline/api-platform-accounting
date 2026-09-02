@@ -76,7 +76,11 @@ class NFePHP
         //$ide->forPag = '';              // 0-Pago; 1-A pagar; 2-Outros
         $ide->mod = (string) $this->model;
         $ide->serie = $this->configValue($provider, $this->model === '65' ? 'receita-federal-nfce-serie' : 'receita-federal-nfe-serie') ?: '1';
-        $ide->nCT = $numeroCTE; // Numero do CTe
+        if ($this->model === '57') {
+            $ide->nCT = $numeroCTE;
+        } else {
+            $ide->nNF = $numeroCTE;
+        }
         $ide->dhEmi = $dhEmi; // Data e hora de emissão do CT-e: Formato AAAA-MM-DDTHH:MM:DD
         $ide->tpImp = '1'; // Formato de impressao do DACTE: 1-Retrato; 2-Paisagem.
         $ide->tpEmis = '1'; // Forma de emissao do CTe: 1-Normal; 4-EPEC pela SVC; 5-Contingência
