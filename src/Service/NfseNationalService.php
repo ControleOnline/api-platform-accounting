@@ -48,7 +48,7 @@ final class NfseNationalService extends NFePHP
         }
 
         $xml = $this->buildDpsXml($order, $id, $cityCode, $series, $number, $serviceCode, $description, $value);
-        $signed = Signer::sign($this->getCertificate($order), $xml, 'infDPS', 'Id', OPENSSL_ALGO_SHA256);
+        $signed = '<?xml version="1.0" encoding="UTF-8"?>' . Signer::sign($this->getCertificate($order), $xml, 'infDPS', 'Id', OPENSSL_ALGO_SHA256);
         $response = $this->post($order, $signed);
         $encoded = $response['nfseXmlGZipB64'] ?? null;
         if (!is_string($encoded) || $encoded === '') {
