@@ -8,6 +8,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use ControleOnline\Entity\Order;
 use ControleOnline\Entity\OrderInvoiceTax;
 use ControleOnline\Service\NFeService;
+use ControleOnline\Service\NfseNationalService;
 use ControleOnline\Service\Imports\InvoiceTaxImportProcessor;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
@@ -19,7 +20,8 @@ class CreateNFeAction
     public function __construct(
         private EntityManagerInterface $manager,
         private NFeService $nFeService,
-        private InvoiceTaxImportProcessor $importProcessor
+        private InvoiceTaxImportProcessor $importProcessor,
+        private ?NfseNationalService $nfseNationalService = null
     ) {}
 
 
@@ -54,11 +56,24 @@ class CreateNFeAction
             }
 
             $model = $request->query->get('model');
-            if (!in_array((string) $model, ['55', '65'], true)) {
-                throw new BadRequestHttpException('O modelo fiscal deve ser informado como 55 ou 65.');
+            if (!in_array((string) $model, ['55', '65', '99', 'NFSE'], true)) {
+                throw new BadRequestHttpException('O modelo fiscal deve ser informado como 55, 65 ou 99.');
             }
 
-            $xml = $this->nFeService->createNfe($orders, (string) $model);
+            if ((string) $model === '99' || (string) $model === 'NFSE') {
+                if (!$this->nfseNationalService) {
+                    throw new \RuntimeException('O serviço nacional de NFS-e não está disponível.');
+                }
+                $serviceCode = (string) ($payload['serviceCode'] ?? '');
+                $description = (string) ($payload['serviceDescription'] ?? '');
+                $serviceValue = (string) ($payload['serviceValue'] ?? '');
+                $emission = $this->nfseNationalService->emit($data, $serviceCode, $description, $serviceValue);
+                $xml = $emission['xml'];
+                $fiscalNumber = (int) $emission['number'];
+            } else {
+                $xml = $this->nFeService->createNfe($orders, (string) $model);
+                $fiscalNumber = null;
+            }
             if (!is_string($xml) || trim($xml) === '') {
                 throw new \RuntimeException('A assinatura não retornou o XML fiscal.');
             }
@@ -70,14 +85,15 @@ class CreateNFeAction
             if (!$invoiceTax) {
                 throw new \RuntimeException('O XML assinado não pôde ser persistido.');
             }
-            $this->nFeService->registerFiscalNumber(
-                $data,
-                (int) $invoiceTax->getFiscalNumber()
-            );
+            if ((string) $model === '99' || (string) $model === 'NFSE') {
+                $this->nfseNationalService->registerFiscalNumber($data, $fiscalNumber);
+            } else {
+                $this->nFeService->registerFiscalNumber($data, (int) $invoiceTax->getFiscalNumber());
+            }
             foreach ($orders as $order) {
                 $link = $this->manager->getRepository(OrderInvoiceTax::class)->findOneBy([
                     'order' => $order,
-                    'invoiceType' => (int) $model,
+                    'invoiceType' => ((string) $model === 'NFSE' ? 99 : (int) $model),
                     'issuer' => $order->getProvider(),
                 ]);
                 if ($link instanceof OrderInvoiceTax) {
@@ -86,7 +102,7 @@ class CreateNFeAction
                     $link = new OrderInvoiceTax();
                     $link->setOrder($order);
                     $link->setInvoiceTax($invoiceTax);
-                    $link->setInvoiceType((int) $model);
+                    $link->setInvoiceType((string) $model === 'NFSE' ? 99 : (int) $model);
                     $link->setIssuer($order->getProvider());
                     $this->manager->persist($link);
                 }
