@@ -80,7 +80,7 @@ final class NfseNationalService extends NFePHP
             throw new \RuntimeException('O ambiente fiscal do emitente não está configurado.');
         }
         $now = (new \DateTimeImmutable())->format('Y-m-d\TH:i:sP');
-        $numberText = str_pad((string) $number, 15, '0', STR_PAD_LEFT);
+        $numberText = (string) $number;
         $xml = new \DOMDocument('1.0', 'UTF-8');
         $xml->formatOutput = false;
         $root = $xml->createElementNS('http://www.sped.fazenda.gov.br/nfse', 'DPS');
