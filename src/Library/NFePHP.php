@@ -383,10 +383,53 @@ class NFePHP
         if (!$certContent)
             throw new \Exception("Key content on table files is empty " . $certPath, 1);
 
-        return Certificate::readPfx(
-            $certContent->getContent(),
-            $certPassword
-        );
+        return $this->readCertificate($certContent->getContent(), $certPassword);
+    }
+
+    private function readCertificate(string $content, string $password): Certificate
+    {
+        try {
+            return Certificate::readPfx($content, $password);
+        } catch (\Throwable $exception) {
+            $pfx = tempnam(sys_get_temp_dir(), 'nfe-pfx-');
+            $pass = tempnam(sys_get_temp_dir(), 'nfe-pass-');
+            $pem = tempnam(sys_get_temp_dir(), 'nfe-pem-');
+            if (!$pfx || !$pass || !$pem) {
+                throw $exception;
+            }
+            try {
+                chmod($pfx, 0600);
+                chmod($pass, 0600);
+                chmod($pem, 0600);
+                file_put_contents($pfx, $content);
+                file_put_contents($pass, $password);
+                $command = sprintf(
+                    'openssl pkcs12 -legacy -in %s -passin file:%s -nodes -out %s 2>/dev/null',
+                    escapeshellarg($pfx),
+                    escapeshellarg($pass),
+                    escapeshellarg($pem)
+                );
+                exec($command, $output, $status);
+                if ($status !== 0) {
+                    throw $exception;
+                }
+                $pemContent = (string) file_get_contents($pem);
+                preg_match('/-----BEGIN PRIVATE KEY-----.*?-----END PRIVATE KEY-----/s', $pemContent, $privateKey);
+                preg_match('/-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/s', $pemContent, $certificate);
+                if (empty($privateKey[0]) || empty($certificate[0])) {
+                    throw $exception;
+                }
+                return new Certificate(
+                    new \NFePHP\Common\Certificate\PrivateKey($privateKey[0]),
+                    new \NFePHP\Common\Certificate\PublicKey($certificate[0]),
+                    new \NFePHP\Common\Certificate\CertificationChain('')
+                );
+            } finally {
+                @unlink($pfx);
+                @unlink($pass);
+                @unlink($pem);
+            }
+        }
     }
 
     private function configValue($provider, string $key): ?string
