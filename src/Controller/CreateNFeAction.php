@@ -77,10 +77,12 @@ class CreateNFeAction
             foreach ($orders as $order) {
                 $link = $this->manager->getRepository(OrderInvoiceTax::class)->findOneBy([
                     'order' => $order,
-                    'invoiceTax' => $invoiceTax,
                     'invoiceType' => (int) $model,
+                    'issuer' => $order->getProvider(),
                 ]);
-                if (!$link instanceof OrderInvoiceTax) {
+                if ($link instanceof OrderInvoiceTax) {
+                    $link->setInvoiceTax($invoiceTax);
+                } else {
                     $link = new OrderInvoiceTax();
                     $link->setOrder($order);
                     $link->setInvoiceTax($invoiceTax);
