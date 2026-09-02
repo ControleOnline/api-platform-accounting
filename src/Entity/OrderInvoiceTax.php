@@ -6,12 +6,16 @@ use Symfony\Component\Serializer\Attribute\Groups;
 
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
 
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ApiResource(
-    operations: [new Get(security: 'is_granted(\'ROLE_HUMAN\')')],
+    operations: [
+        new Get(security: 'is_granted(\'ROLE_HUMAN\')'),
+        new GetCollection(security: 'is_granted(\'ROLE_HUMAN\')'),
+    ],
     formats: ['jsonld', 'json', 'html', 'jsonhal', 'csv' => ['text/csv']],
     normalizationContext: ['groups' => ['order_invoice_tax:read']],
     denormalizationContext: ['groups' => ['order_invoice_tax:write']]
@@ -37,6 +41,7 @@ class OrderInvoiceTax
 
     #[ORM\JoinColumn(name: 'order_id', referencedColumnName: 'id')]
     #[ORM\ManyToOne(targetEntity: Order::class, inversedBy: 'invoiceTax')]
+    #[Groups(['order_invoice_tax:read'])]
     private $order;
 
     #[ORM\JoinColumn(name: 'issuer_id', referencedColumnName: 'id')]
