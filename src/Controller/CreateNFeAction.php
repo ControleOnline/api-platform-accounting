@@ -70,6 +70,10 @@ class CreateNFeAction
             if (!$invoiceTax) {
                 throw new \RuntimeException('O XML assinado não pôde ser persistido.');
             }
+            $this->nFeService->registerFiscalNumber(
+                $data,
+                (int) $invoiceTax->getFiscalNumber()
+            );
             foreach ($orders as $order) {
                 $link = $this->manager->getRepository(OrderInvoiceTax::class)->findOneBy([
                     'order' => $order,

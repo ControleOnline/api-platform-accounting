@@ -578,6 +578,23 @@ class NFePHP
         return ((int) ($this->configValue($provider, $key) ?: 0)) + 1;
     }
 
+    public function registerFiscalNumber(Order $order, int $number): void
+    {
+        if ($number <= 0 || !in_array($this->model, ['55', '65'], true)) {
+            return;
+        }
+
+        $key = $this->model === '65' ? 'receita-federal-nfce-last-number' : 'receita-federal-nfe-last-number';
+        $config = $this->manager->getRepository(Config::class)->findOneBy([
+            'people' => $order->getProvider(),
+            'configKey' => $key,
+        ]);
+        if ($config && (int) $config->getConfigValue() < $number) {
+            $config->setConfigValue((string) $number);
+            $this->manager->persist($config);
+        }
+    }
+
     protected function montaChave($cUF, $ano, $mes, $cnpj, $mod, $serie, $numero, $tpEmis, $codigo = '')
     {
         if ($codigo == '') {
