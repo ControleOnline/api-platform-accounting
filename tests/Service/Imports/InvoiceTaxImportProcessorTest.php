@@ -34,6 +34,20 @@ final class InvoiceTaxImportProcessorTest extends TestCase
         self::assertSame('Transportadora', $parsed['carrier']['name']);
     }
 
+    public function testParseNationalNfseXmlExtractsFiscalFields(): void
+    {
+        $xml = '<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse"><infNFSe Id="NFS12345678901234567890123456789012345678901234567890"><nNFSe>12</nNFSe><serie>00001</serie><emit><CNPJ>08801492000126</CNPJ><xNome>Prestador</xNome></emit><toma><CNPJ>20114048000138</CNPJ><xNome>Tomador</xNome></toma><valores><vServPrest><vServ>10.00</vServ></vServPrest></valores></infNFSe></NFSe>';
+
+        $parsed = (new InvoiceTaxXmlParser())->parseNfeXml($xml);
+
+        self::assertIsArray($parsed);
+        self::assertSame('99', $parsed['model']);
+        self::assertSame('12', $parsed['number']);
+        self::assertSame('00001', $parsed['series']);
+        self::assertSame('12345678901234567890123456789012345678901234567890', $parsed['key']);
+        self::assertSame('10.00', $parsed['total']);
+    }
+
     public function testExtractXmlEntriesAcceptsSingleXmlFile(): void
     {
         $entries = (new InvoiceTaxXmlParser())->extractXmlEntries($this->nfeXml(), 'nota.xml');

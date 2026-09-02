@@ -255,9 +255,11 @@ class InvoiceTax
         $xml = $this->getInvoice();
         $model = (int) ($this->invoiceModel ?: $this->detectFiscalModel($xml));
         $isCte = $model === 57;
+        $isNfse = $model === 99;
         $type = $this->fiscalType ?: match ($model) {
             57 => 'CTE',
             55, 65 => 'NFE',
+            99 => 'NFSE',
             default => null,
         };
 
@@ -265,8 +267,8 @@ class InvoiceTax
             'type' => $type,
             'model' => $model ?: null,
             'series' => $this->firstFiscalValue($this->fiscalSeries, $this->extractFiscalXmlValue($xml, 'serie')),
-            'number' => $this->firstFiscalValue($this->fiscalNumber, $this->extractFiscalXmlValue($xml, $isCte ? 'nCT' : 'nNF')),
-            'key' => $this->firstFiscalValue($this->invoiceKey, $this->extractFiscalXmlValue($xml, $isCte ? 'chCTe' : 'chNFe')),
+            'number' => $this->firstFiscalValue($this->fiscalNumber, $this->extractFiscalXmlValue($xml, $isCte ? 'nCT' : ($isNfse ? 'nNFSe' : 'nNF'))),
+            'key' => $this->firstFiscalValue($this->invoiceKey, $this->extractFiscalXmlValue($xml, $isCte ? 'chCTe' : ($isNfse ? 'Id' : 'chNFe'))),
             'issuedAt' => $this->firstFiscalValue($this->extractFiscalXmlValue($xml, 'dhEmi')),
             'cfop' => $this->firstFiscalValue($this->extractFiscalXmlValue($xml, 'CFOP')),
             'protocol' => $this->firstFiscalValue($this->fiscalProtocol, $this->extractFiscalXmlValue($xml, 'nProt')),
@@ -351,10 +353,11 @@ class InvoiceTax
         $this->setFiscalType(match ($model) {
             57 => 'CTE',
             55, 65 => 'NFE',
+            99 => 'NFSE',
             default => null,
         });
         $this->setFiscalSeries($this->extractFiscalXmlValue($xml, 'serie'));
-        $this->setFiscalNumber($this->extractFiscalXmlValue($xml, $isCte ? 'nCT' : 'nNF'));
+        $this->setFiscalNumber($this->extractFiscalXmlValue($xml, $isCte ? 'nCT' : ($model === 99 ? 'nNFSe' : 'nNF')));
         $this->setFiscalProtocol($this->extractFiscalXmlValue($xml, 'nProt'));
         $this->setFiscalAuthorizationStatus($this->extractFiscalXmlValue($xml, 'cStat'));
 
@@ -387,6 +390,10 @@ class InvoiceTax
 
         if (is_string($xml) && (stripos($xml, '<NFe') !== false || stripos($xml, '<nfeProc') !== false)) {
             return 55;
+        }
+
+        if (is_string($xml) && stripos($xml, '<NFSe') !== false) {
+            return 99;
         }
 
         return 0;
