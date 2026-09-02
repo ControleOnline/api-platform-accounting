@@ -68,6 +68,10 @@ final class NfseNationalService extends NFePHP
     private function buildDpsXml(Order $order, string $id, string $cityCode, string $series, int $number, string $serviceCode, string $description, string $value): string
     {
         $provider = $order->getProvider();
+        $address = $provider?->getAddress()[0] ?? null;
+        if (!$address) {
+            throw new \RuntimeException('Emitente deve possuir endereço para NFS-e.');
+        }
         $client = $order->getClient();
         $clientDocument = $client?->getOneDocument();
         if (!$clientDocument) {
