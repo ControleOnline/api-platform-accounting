@@ -25,8 +25,16 @@ use ControleOnline\Library\NFePHP;
 
 class NFeService extends NFePHP
 {
-    public function createNfe(Order $order, $model, $version =  '4.00')
+    public function createNfe(Order|array $input, $model, $version =  '4.00')
     {
+        $orders = $input instanceof Order ? [$input] : array_values(array_filter(
+            $input,
+            static fn (mixed $order): bool => $order instanceof Order
+        ));
+        if ($orders === []) {
+            throw new \InvalidArgumentException('Nenhum pedido válido foi informado para emissão.');
+        }
+        $order = $orders[0];
 
         $this->model = (string) $model;
         $this->version = $version;
@@ -35,12 +43,12 @@ class NFeService extends NFePHP
             case '65':
                 $this->make = new \NFePHP\NFe\Make();
                 $this->tools = new \NFePHP\NFe\Tools($this->getSignData($order), $this->getCertificate($order));
-                $this->cupomFiscal($order);
+                $this->cupomFiscal($order, $orders);
                 break;
             case '55':
                 $this->make = new \NFePHP\NFe\Make();
                 $this->tools = new \NFePHP\NFe\Tools($this->getSignData($order), $this->getCertificate($order));
-                $this->nfe($order);
+                $this->nfe($order, $orders);
                 break;
             case '57':
                 $this->make = new \NFePHP\CTe\MakeCTe();
@@ -58,16 +66,16 @@ class NFeService extends NFePHP
         return $xml;
     }
 
-    protected function nfe(Order $order)
+    protected function nfe(Order $order, array $orders = [])
     {
         $this->makeInfNFe($this->version);
         $this->makeIde($order);
         $this->makeEmit($order);
         $this->makeDest($order);
-        $this->makeProds($order);
+        $this->makeProds($orders ?: [$order]);
         $this->makeTransp($order);
-        $this->makePag($order);
-        $this->makedetPag($order);
+        $this->makePag($orders ?: [$order]);
+        $this->makedetPag($orders ?: [$order]);
     }
 
     protected function cte(Order $order)
@@ -76,19 +84,19 @@ class NFeService extends NFePHP
         $this->makeIde($order);
         $this->makeEmit($order);
         $this->makeDest($order);
-        $this->makePag($order);
-        $this->makedetPag($order);
+        $this->makePag($orders ?: [$order]);
+        $this->makedetPag($orders ?: [$order]);
         $this->makeTomador($order);
     }
 
-    protected function cupomFiscal(Order $order)
+    protected function cupomFiscal(Order $order, array $orders = [])
     {
         $this->makeInfRespTec();
         $this->makeInfNFe($this->version);
         $this->makeIde($order);
         $this->makeEmit($order);
         $this->makeDest($order);
-        $this->makeProds($order);
+        $this->makeProds($orders ?: [$order]);
         $this->makeTransp($order);
         $this->makePag($order);
         $this->makedetPag($order);
