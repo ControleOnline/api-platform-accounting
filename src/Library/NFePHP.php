@@ -36,16 +36,23 @@ class NFePHP
         //$dhEmi = date("Y-m-d\TH:i:s-03:00"); Para obter a data com diferença de fuso usar 'P'
         $dhEmi = date("Y-m-d\TH:i:sP");
 
-        $numeroCTE = $this->getLastDacte();
+        $providerAddress = $provider->getAddress()[0] ?? null;
+        if (!$providerAddress) throw new \RuntimeException('Endereço do emitente não cadastrado.');
+        $cityEntity = $providerAddress->getStreet()->getDistrict()->getCity();
+        $stateEntity = $cityEntity->getState();
+        $city = $cityEntity->getCity();
+        $uf = $stateEntity->getUf();
+        $stateCode = (string) $stateEntity->getCodIbge();
+        $numeroCTE = $this->getLastFiscalNumber($provider);
 
         // CUIDADO: Observe que mesmo os parâmetros fixados abaixo devem ser preenchidos conforme os dados do CT-e, estude a composição da CHAVE para saber o que vai em cada campo
         $chave = $this->montaChave(
-            '43',
+            $stateCode,
             date('y', strtotime($dhEmi)),
             date('m', strtotime($dhEmi)),
             $document->getDOcument(),
             $this->tools->model(),
-            '1',
+            $this->configValue($provider, $this->model === '65' ? 'receita-federal-nfce-serie' : 'receita-federal-nfe-serie') ?: '1',
             $numeroCTE,
             '1',
             '10'
@@ -57,7 +64,7 @@ class NFePHP
          * @todo
          */
         $ide = new \stdClass();
-        $ide->cUF = '43'; // Codigo da UF da tabela do IBGE
+        $ide->cUF = $stateCode; // Codigo da UF da tabela do IBGE
         $ide->cCT = '99999999'; // Codigo numerico que compoe a chave de acesso
         $ide->CFOP = '6932'; // Codigo fiscal de operacoes e prestacoes
         $ide->natOp = 'PRESTACAO DE SERVICO DE TRANSPORTE A ESTABELECIMENTO FORA DO ESTADO DE ORIGEM'; // Natureza da operacao
@@ -67,22 +74,22 @@ class NFePHP
          */
 
         //$ide->forPag = '';              // 0-Pago; 1-A pagar; 2-Outros
-        $ide->mod = (string) $this->model; // O modelo deve corresponder ao documento solicitado.
-        $ide->serie = '1'; // Serie do CTe
+        $ide->mod = (string) $this->model;
+        $ide->serie = $this->configValue($provider, $this->model === '65' ? 'receita-federal-nfce-serie' : 'receita-federal-nfe-serie') ?: '1';
         $ide->nCT = $numeroCTE; // Numero do CTe
         $ide->dhEmi = $dhEmi; // Data e hora de emissão do CT-e: Formato AAAA-MM-DDTHH:MM:DD
         $ide->tpImp = '1'; // Formato de impressao do DACTE: 1-Retrato; 2-Paisagem.
         $ide->tpEmis = '1'; // Forma de emissao do CTe: 1-Normal; 4-EPEC pela SVC; 5-Contingência
         $ide->cDV = $cDV; // Codigo verificador
-        $ide->tpAmb = '2'; // 1- Producao; 2-homologacao
+        $ide->tpAmb = $this->configValue($provider, 'receita-federal-environment') ?: '2';
         $ide->tpCTe = '0'; // 0- CT-e Normal; 1 - CT-e de Complemento de Valores;
         // 2 -CT-e de Anulação; 3 - CT-e Substituto
         $ide->procEmi = '0'; // Descricao no comentario acima
         $ide->verProc = $this->version; // versao do aplicativo emissor
         $ide->indGlobalizado = '';
         //$ide->refCTE = '';             // Chave de acesso do CT-e referenciado            
-        $ide->xMunEnv = 'FOZ DO IGUACU'; // Informar PAIS/Municipio para as operações com o exterior.
-        $ide->UFEnv = 'RS'; // Informar 'EX' para operações com o exterior.
+        $ide->xMunEnv = $city;
+        $ide->UFEnv = $uf;
         $ide->modal = '01'; // Preencher com:01-Rodoviário; 02-Aéreo; 03-Aquaviário;04-
         $ide->tpServ = '0'; // 0- Normal; 1- Subcontratação; 2- Redespacho;
         $ide->cMunEnv = $this->getCodMunicipio($ide->xMunEnv, $ide->UFEnv); // Código do município (utilizar a tabela do IBGE)
@@ -92,8 +99,8 @@ class NFePHP
          * @todo
          */
         // 3- Redespacho Intermediário; 4- Serviço Vinculado a Multimodal            
-        $ide->xMunIni = 'FOZ DO IGUACU'; // Informar 'EXTERIOR' para operações com o exterior.
-        $ide->UFIni = 'RS'; // Informar 'EX' para operações com o exterior.
+        $ide->xMunIni = $city;
+        $ide->UFIni = $uf;
         $ide->cMunFim = '3523909'; // Utilizar a tabela do IBGE. Informar 9999999 para operações com o exterior.
         $ide->cMunFim = $this->getCodMunicipio($ide->xMunIni, $ide->UFIni); // Código do município (utilizar a tabela do IBGE)
 
@@ -101,8 +108,8 @@ class NFePHP
         /**
          * @todo
          */
-        $ide->xMunFim = 'ITU'; // Informar 'EXTERIOR' para operações com o exterior.
-        $ide->UFFim = 'SP'; // Informar 'EX' para operações com o exterior.
+        $ide->xMunFim = $city;
+        $ide->UFFim = $uf;
         $ide->cMunIni = $this->getCodMunicipio($ide->xMunFim, $ide->UFFim); // Código do município (utilizar a tabela do IBGE)
 
         $ide->retira = '1'; // Indicador se o Recebedor retira no Aeroporto; Filial,
@@ -525,11 +532,19 @@ class NFePHP
             'São Paulo' => '4108304'
         ];
 
-        return $cod[$uf][$mun];
+        $code = $this->manager->getConnection()->fetchOne(
+            'SELECT c.cod_ibge FROM city c JOIN state s ON s.id = c.state_id WHERE c.city = ? AND s.UF = ?',
+            [$mun, $uf]
+        );
+        if (!$code) {
+            throw new \RuntimeException(sprintf('Município %s/%s não possui código IBGE cadastrado.', $mun, $uf));
+        }
+        return (string) $code;
     }
-    protected function getLastDacte()
+    protected function getLastFiscalNumber($provider)
     {
-        return '127'; //@todo
+        $key = $this->model === '65' ? 'receita-federal-nfce-last-number' : 'receita-federal-nfe-last-number';
+        return ((int) ($this->configValue($provider, $key) ?: 0)) + 1;
     }
 
     protected function montaChave($cUF, $ano, $mes, $cnpj, $mod, $serie, $numero, $tpEmis, $codigo = '')
