@@ -123,10 +123,12 @@ final class NfseNationalService extends NFePHP
         }
         $regTrib = $xml->createElement('regTrib');
         $regTrib->appendChild($xml->createElement('opSimpNac', $taxRegime));
+        $regTrib->appendChild($xml->createElement('regEspTrib', '0'));
         $prest->appendChild($regTrib);
         $inf->appendChild($prest);
         $toma = $xml->createElement('toma');
         $toma->appendChild($xml->createElement($tag, $doc));
+        $toma->appendChild($xml->createElement('xNome', $client->getName()));
         $inf->appendChild($toma);
         $serv = $xml->createElement('serv');
         $loc = $xml->createElement('locPrest');
