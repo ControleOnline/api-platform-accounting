@@ -148,6 +148,13 @@ final class NfseNationalService extends NFePHP
         $tribMun->appendChild($xml->createElement('tribISSQN', '1'));
         $tribMun->appendChild($xml->createElement('tpRetISSQN', '1'));
         $trib->appendChild($tribMun);
+        $totTrib = $xml->createElement('totTrib');
+        $totals = $xml->createElement('vTotTrib');
+        foreach (['vTotTribFed', 'vTotTribEst', 'vTotTribMun'] as $totalName) {
+            $totals->appendChild($xml->createElement($totalName, '0.00'));
+        }
+        $totTrib->appendChild($totals);
+        $trib->appendChild($totTrib);
         $values->appendChild($trib);
         $inf->appendChild($values);
         return $xml->saveXML();
