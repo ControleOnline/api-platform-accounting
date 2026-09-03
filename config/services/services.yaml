@@ -10,7 +10,7 @@ services:
 
     ControleOnline\:
         resource: '../../src/*'
-        exclude: '../../src/{Command,DependencyInjection,Entity,Resource,Migrations,Library,Message,Tests,Kernel.php}'
+        exclude: '../../src/{Command,Controller,DependencyInjection,Entity,Resource,Migrations,Library,Message,Tests,Kernel.php}'
     ControleOnline\Repository\:
         resource: '../../src/Repository'
         tags: ['doctrine.repository_service']
