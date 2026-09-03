@@ -22,6 +22,9 @@ class CteFiscalConfig
         'receita-federal-cte-serie',
         'receita-federal-cte-last-number',
         'receita-federal-cte-rntrc',
+        'receita-federal-mdfe-enabled',
+        'receita-federal-mdfe-serie',
+        'receita-federal-mdfe-last-number',
     ];
 
     public function __construct(
@@ -42,6 +45,7 @@ class CteFiscalConfig
         }
 
         $values['nextNumber'] = ((int) ($values['receita-federal-cte-last-number'] ?? 0)) + 1;
+        $values['mdfeNextNumber'] = ((int) ($values['receita-federal-mdfe-last-number'] ?? 0)) + 1;
         $values['certificateBinary'] = $this->resolveCertificate($values['receita-federal-certificate-file'] ?? null);
         $certificateIssuer = $this->certificateIssuer(
             $values['certificateBinary'],
@@ -66,6 +70,17 @@ class CteFiscalConfig
         $module = $this->configService->discoveryModule('config');
         $this->configService->addConfig($company, 'receita-federal-cte-last-number', (string) $authorizedNumber, $module, 'private');
     }
+
+    public function incrementMdfeLastNumber(?People $company, int $authorizedNumber): void
+    {
+        if ($company === null) {
+            return;
+        }
+
+        $module = $this->configService->discoveryModule('config');
+        $this->configService->addConfig($company, 'receita-federal-mdfe-last-number', (string) $authorizedNumber, $module, 'private');
+    }
+
 
     private function resolveCertificate(mixed $raw): ?string
     {
