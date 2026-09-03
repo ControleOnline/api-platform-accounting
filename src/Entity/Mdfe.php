@@ -6,7 +6,7 @@ use Doctrine\Common\Collections\{ArrayCollection,Collection};
 use Doctrine\ORM\Mapping as ORM;
 #[ORM\Entity]
 #[ORM\Table(name: 'mdfe')]
-#[ApiResource(operations: [new Get(security: "is_granted('ROLE_HUMAN')"), new GetCollection(security: "is_granted('ROLE_HUMAN')"), new Post(uriTemplate: '/mdfe/emit', controller: EmitMdfeAction::class, deserialize: false, security: "is_granted('ROLE_HUMAN')")])]
+#[ApiResource(operations: [new Get(security: "is_granted('ROLE_HUMAN')"), new GetCollection(security: "is_granted('ROLE_HUMAN')"), new Post(uriTemplate: '/mdfe/emit', controller: EmitMdfeAction::class, deserialize: false, security: "is_granted('ROLE_HUMAN')"), new Post(uriTemplate: '/invoice_taxes/mdfe', controller: EmitMdfeAction::class, deserialize: false, security: "is_granted('ROLE_HUMAN')")])]
 class Mdfe {
  #[ORM\Id,ORM\GeneratedValue,ORM\Column(type:'integer')] private ?int $id=null;
  #[ORM\ManyToOne(targetEntity:People::class),ORM\JoinColumn(name:'company_id',nullable:false,onDelete:'CASCADE')] private ?People $company=null;
