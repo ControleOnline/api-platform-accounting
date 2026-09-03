@@ -7,8 +7,8 @@ use ControleOnline\Entity\InvoiceTax;
 use ControleOnline\Service\Cte\CteEmissionProcessor;
 
 /**
- * Handler do Messenger / IntegrationService quando queueName = "CteEmission".
- * Fluxo real: XML → assinatura → SEFAZ.
+ * Handler do cron tenant:integration:start / IntegrationService quando
+ * queueName = "CteEmission". Fluxo real: XML → assinatura → SEFAZ.
  * Nunca inventa chave/número nem status Closed sem autorização.
  */
 class CteEmissionService

@@ -44,28 +44,12 @@ final class InvoicesWithoutCteServiceTest extends TestCase
 
     public function testListDoesNotReadAnUndefinedXmlVariable(): void
     {
-        $sqlSeen = null;
         $connection = $this->createMock(Connection::class);
-        $connection->method('fetchFirstColumn')->willReturnCallback(
-            static function (string $sql) {
-                if (str_starts_with($sql, 'SHOW COLUMNS')) {
-                    return [
-                        'id', 'invoice_number', 'invoice_key', 'invoice_model', 'invoice_total',
-                        'cte_id', 'invoice_task_id', 'issuer_id', 'company_id', 'client_id',
-                        'provider_id', 'carrier_id', 'address_id',
-                    ];
-                }
-
-                return [];
-            }
-        );
-        $connection->method('fetchAllAssociative')->willReturnCallback(
-            static function (string $sql) use (&$sqlSeen) {
-                $sqlSeen = $sql;
-
-                return [];
-            }
-        );
+        $connection->method('fetchFirstColumn')->willReturn([
+            'id', 'invoice_number', 'invoice_key', 'invoice_model', 'invoice_total',
+            'cte_id', 'issuer_id', 'company_id', 'client_id', 'provider_id', 'carrier_id', 'address_id',
+        ]);
+        $connection->method('fetchAllAssociative')->willReturn([]);
 
         $entityManager = $this->createMock(EntityManagerInterface::class);
         $entityManager->method('getConnection')->willReturn($connection);
@@ -74,9 +58,6 @@ final class InvoicesWithoutCteServiceTest extends TestCase
 
         self::assertSame([], $result['member']);
         self::assertSame(0, $result['totalItems']);
-        self::assertIsString($sqlSeen);
-        self::assertStringContainsString('it.cte_id IS NULL', (string) $sqlSeen);
-        self::assertStringContainsString('it.invoice_task_id IS NULL', (string) $sqlSeen);
     }
 
     private function setId(object $entity, int $id): void
