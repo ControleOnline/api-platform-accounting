@@ -15,6 +15,8 @@ final class CteFiscalConfigTest extends TestCase
         self::assertContains('receita-federal-environment', CteFiscalConfig::KEYS);
         self::assertContains('receita-federal-cte-serie', CteFiscalConfig::KEYS);
         self::assertContains('receita-federal-cte-last-number', CteFiscalConfig::KEYS);
+        self::assertContains('receita-federal-mdfe-serie', CteFiscalConfig::KEYS);
+        self::assertContains('receita-federal-mdfe-last-number', CteFiscalConfig::KEYS);
     }
 
     public function testLoadWithoutCompanyReturnsEmptyKeysAndNextNumberOne(): void

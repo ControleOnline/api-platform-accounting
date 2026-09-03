@@ -22,6 +22,9 @@ class CteFiscalConfig
         'receita-federal-cte-serie',
         'receita-federal-cte-last-number',
         'receita-federal-cte-rntrc',
+        'receita-federal-mdfe-enabled',
+        'receita-federal-mdfe-serie',
+        'receita-federal-mdfe-last-number',
     ];
 
     public function __construct(
@@ -33,6 +36,8 @@ class CteFiscalConfig
     public function load(?People $company): array
     {
         $values = array_fill_keys(self::KEYS, null);
+        $values['nextNumber'] = 1;
+        $values['mdfeNextNumber'] = 1;
         if ($company === null) {
             return $values;
         }
@@ -42,6 +47,7 @@ class CteFiscalConfig
         }
 
         $values['nextNumber'] = ((int) ($values['receita-federal-cte-last-number'] ?? 0)) + 1;
+        $values['mdfeNextNumber'] = ((int) ($values['receita-federal-mdfe-last-number'] ?? 0)) + 1;
         $values['certificateBinary'] = $this->resolveCertificate($values['receita-federal-certificate-file'] ?? null);
         $certificateIssuer = $this->certificateIssuer(
             $values['certificateBinary'],
