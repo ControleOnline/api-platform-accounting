@@ -22,9 +22,6 @@ class CteFiscalConfig
         'receita-federal-cte-serie',
         'receita-federal-cte-last-number',
         'receita-federal-cte-rntrc',
-        'receita-federal-mdfe-enabled',
-        'receita-federal-mdfe-serie',
-        'receita-federal-mdfe-last-number',
     ];
 
     public function __construct(
@@ -38,6 +35,9 @@ class CteFiscalConfig
         $values = array_fill_keys(self::KEYS, null);
         $values['nextNumber'] = 1;
         $values['mdfeNextNumber'] = 1;
+        $values['certificateBinary'] = null;
+        $values['certificateDocument'] = null;
+        $values['certificateName'] = null;
         if ($company === null) {
             return $values;
         }
