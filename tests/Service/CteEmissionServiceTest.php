@@ -12,7 +12,7 @@ namespace ControleOnline\Entity {
     }
 }
 
-namespace ControleOnline\Tests\Service {
+namespace ControleOnline\Tests\Service;
 
 use ControleOnline\Entity\Integration;
 use ControleOnline\Entity\InvoiceTask;
@@ -156,5 +156,4 @@ final class CteEmissionServiceTest extends TestCase
         $this->expectExceptionMessage('NFs da integração CteEmission não encontradas');
         $service->integrate($integration);
     }
-}
 }

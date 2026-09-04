@@ -1,5 +1,32 @@
 <?php
+
 namespace ControleOnline\Controller;
+
 use ControleOnline\Service\EmitMdfeService;
-use Symfony\Component\HttpFoundation\{JsonResponse,Request};
-final class EmitMdfeAction { public function __construct(private EmitMdfeService $service){} public function __invoke(Request $r):JsonResponse{$p=json_decode((string)$r->getContent(),true)?:[];$ids=$p['invoiceTaxIds']??$p['selected']??$p['documents']??[];$ref=static fn(mixed $v):(int)preg_replace('/\D+/','',(string)$v);$vehicle=(int)($p['vehicleId']??$ref($p['vehicle']??0));$driver=(int)($p['driverId']??$ref($p['driver']??0));$insurer=!empty($p['insurerId'])?(int)$p['insurerId']:(!empty($p['insurer'])?$ref($p['insurer']):null);try{$m=$this->service->create(is_array($ids)?$ids:[$ids],$vehicle,$driver,$insurer);return new JsonResponse(['id'=>$m->getId(),'@id'=>'/mdfe/'.$m->getId(),'status'=>$m->getStatus()],201);}catch(\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e){return new JsonResponse(['error'=>$e->getMessage()],$e->getStatusCode());}catch(\Throwable){return new JsonResponse(['error'=>'Falha ao criar MDF-e.'],500);}}}
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
+
+class EmitMdfeAction
+{
+    public function __construct(private EmitMdfeService $emitMdfeService)
+    {
+    }
+
+    public function __invoke(Request $request): JsonResponse
+    {
+        $payload = json_decode((string) $request->getContent(), true) ?: [];
+
+        try {
+            $mdfe = $this->emitMdfeService->emit($payload);
+            return new JsonResponse([
+                'id' => $mdfe->getId(),
+                '@id' => '/mdfes/' . $mdfe->getId(),
+                'status' => $mdfe->getStatus(),
+            ], 201);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], $exception->getStatusCode());
+        } catch (\Throwable $exception) {
+            return new JsonResponse(['error' => $exception->getMessage() ?: 'Falha ao emitir MDF-e.'], 500);
+        }
+    }
+}
