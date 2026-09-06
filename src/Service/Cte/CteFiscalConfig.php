@@ -34,6 +34,10 @@ class CteFiscalConfig
     {
         $values = array_fill_keys(self::KEYS, null);
         if ($company === null) {
+            $values['nextNumber'] = 1;
+            $values['certificateBinary'] = null;
+            $values['certificateDocument'] = null;
+            $values['certificateName'] = null;
             return $values;
         }
 
