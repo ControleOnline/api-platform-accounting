@@ -34,10 +34,11 @@ namespace ControleOnline\Tests\Service {
 
 use ControleOnline\Entity\Integration;
 use ControleOnline\Entity\InvoiceTax;
+use ControleOnline\Entity\User;
 use ControleOnline\Service\EmitCteService;
 use ControleOnline\Service\IntegrationService;
 use ControleOnline\Service\StatusService;
-use Doctrine\ORM\AbstractQuery;
+use Doctrine\ORM\Query;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\QueryBuilder;
@@ -45,6 +46,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 final class EmitCteServiceTest extends TestCase
 {
@@ -161,7 +163,7 @@ final class EmitCteServiceTest extends TestCase
         $repo = $this->createMock(EntityRepository::class);
         $repo->method('findBy')->with(['id' => $ids])->willReturn($invoices);
 
-        $query = $this->createMock(AbstractQuery::class);
+        $query = $this->createMock(Query::class);
         $query->method('getOneOrNullResult')->willReturn($busy);
 
         $qb = $this->createMock(QueryBuilder::class);
@@ -182,12 +184,8 @@ final class EmitCteServiceTest extends TestCase
 
     private function superTokenStorage(): TokenStorageInterface
     {
-        $user = new class {
-            public function getRoles(): array
-            {
-                return ['ROLE_SUPER'];
-            }
-        };
+        $user = $this->createMock(User::class);
+        $user->method('getRoles')->willReturn(['ROLE_SUPER']);
         $token = $this->createMock(TokenInterface::class);
         $token->method('getUser')->willReturn($user);
         $storage = $this->createMock(TokenStorageInterface::class);

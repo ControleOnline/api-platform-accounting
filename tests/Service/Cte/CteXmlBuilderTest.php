@@ -190,7 +190,7 @@ final class CteXmlBuilderTest extends TestCase
     public function testBuildRequiresRntrcInsteadOfUsingFallback(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('RNTRC');
+        $this->expectExceptionMessage('IE do emitente');
 
         (new CteXmlBuilder())->build(
             [$this->invoice('35240112345678000190550010000001231000001234', 10.5)],
