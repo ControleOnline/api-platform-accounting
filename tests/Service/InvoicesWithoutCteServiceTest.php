@@ -51,7 +51,7 @@ final class InvoicesWithoutCteServiceTest extends TestCase
                 if (str_starts_with($sql, 'SHOW COLUMNS')) {
                     return [
                         'id', 'invoice_number', 'invoice_key', 'invoice_model', 'invoice_total',
-                        'cte_id', 'invoice_task_id', 'issuer_id', 'company_id', 'client_id',
+                        'cte_id', 'integration_id', 'issuer_id', 'company_id', 'client_id',
                         'provider_id', 'carrier_id', 'address_id',
                     ];
                 }
@@ -76,7 +76,7 @@ final class InvoicesWithoutCteServiceTest extends TestCase
         self::assertSame(0, $result['totalItems']);
         self::assertIsString($sqlSeen);
         self::assertStringContainsString('it.cte_id IS NULL', (string) $sqlSeen);
-        self::assertStringContainsString('it.invoice_task_id IS NULL', (string) $sqlSeen);
+        self::assertStringContainsString('it.integration_id IS NULL', (string) $sqlSeen);
     }
 
     private function setId(object $entity, int $id): void
