@@ -16,7 +16,7 @@
 
 | Página | O que documenta |
 | --- | --- |
-| [CT-e — Emissão com NFePHP e DACTE](https://github.com/ControleOnline/api-platform-accounting/wiki/CT-e-Emissao-NFePHP) | Fila `cte_emission` / Messenger `CteEmission`; processor único; Closed só após SEFAZ; DACTE (#16, app-community#689) |
+| [CT-e — Emissão com NFePHP e DACTE](https://github.com/ControleOnline/api-platform-accounting/wiki/CT-e-Emissao-NFePHP) | Fila `cte_emission`; mínimo 1 NF; vínculo imediato `invoice_task_id` no emit-cte (`without-cte`); Closed só após SEFAZ; DACTE (#16 + #26 + #27, app-community#689) |
 | [Importação NF-e XML/ZIP](docs/technical/InvoiceTax-Import-NFe.md) | invoice_tax: parse, pessoas, vínculos, isolamento multi-tenant |
 
 ### Módulos relacionados
