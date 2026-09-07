@@ -336,8 +336,8 @@ class InvoicesWithoutCteService
             $params[] = $ids;
             $types[] = \Doctrine\DBAL\Connection::PARAM_INT_ARRAY;
         }
-        if (isset($columns['invoice_task_id'])) {
-            $sql .= ' AND it.invoice_task_id IS NULL';
+        if (isset($columns['integration_id'])) {
+            $sql .= ' AND it.integration_id IS NULL';
         }
         $sql .= ' ORDER BY issuer.alias ASC, it.invoice_number ASC';
         $rows = $conn->fetchAllAssociative($sql, $params, $types);
@@ -415,7 +415,7 @@ class InvoicesWithoutCteService
     {
         try {
             $ids = $this->entityManager->getConnection()->fetchFirstColumn(
-                'SELECT id FROM invoice_tax WHERE invoice_task_id IS NOT NULL'
+                'SELECT id FROM invoice_tax WHERE integration_id IS NOT NULL'
             );
             return array_map('intval', $ids ?: []);
         } catch (\Throwable) {
