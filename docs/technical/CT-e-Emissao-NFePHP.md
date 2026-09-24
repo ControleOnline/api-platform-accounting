@@ -1,6 +1,10 @@
 # CT-e — Emissão com NFePHP (sped-cte) e DACTE (sped-da)
 
-Documentação técnica do fluxo de **emissão real de CT-e (modelo 57)** no módulo `api-platform-accounting`, implementado na issue [#16](https://github.com/ControleOnline/api-platform-accounting/issues/16).
+Documentação técnica do fluxo de **emissão real de CT-e (modelo 57)** no módulo `api-platform-accounting`.
+
+Implementação principal: issue [#16](https://github.com/ControleOnline/api-platform-accounting/issues/16) (NFePHP + DACTE).  
+Correção de validação de quantidade de NFs: issue [#26](https://github.com/ControleOnline/api-platform-accounting/issues/26) (mínimo **1** NF, alinhado à prática fiscal).  
+Vínculo imediato NF → task no emit-cte: issue [#27](https://github.com/ControleOnline/api-platform-accounting/issues/27) (`invoice_task_id` / `InvoiceTax::$integration` na criação da task).
 
 ## Objetivo
 
@@ -32,6 +36,9 @@ Consumir a fila de emissão de CT-e (`cte_emission` / `invoice_task` tipo `cte_e
 | **Outras visões (CRM, POS, SHOP, …)** | Não emitem CT-e nem consomem a fila. Podem apenas visualizar documentos fiscais já emitidos se a UI compartilhada permitir. |
 
 O módulo **não** deve assumir regras de tela, seleção de NFs ou layout de listagem — isso permanece na UI. A API só recebe `invoiceTaxIds` + `cfop` (+ `extra` opcional) e processa de forma assíncrona.
+
+UI de **consulta** (não emissão): [CT-e — Detalhe e PDF (DACTE)](https://github.com/ControleOnline/ui-logistic/wiki/CT-e-Detalhe-e-PDF) — lista `/cte` aba CTE, modal PDF e página `/cte/detail` read-only (ui-logistic#34). O endpoint de download continua neste módulo.
+
 
 ## Configuração fiscal da empresa
 
@@ -85,16 +92,40 @@ sequenceDiagram
   - `invoiceTaxIds` ou `selected`: lista de IDs de `invoice_tax` (modelo 55)
   - `cfop` (obrigatório)
   - `extra` (opcional): `natOp`, `rntrc`, `xMunEnv`, `UFEnv`, etc.
-- Cria `Integration` com `queueName`/`taskType` de emissão CT-e e vincula as NFs imediatamente (para a listagem `without-cte` não as reexibir enquanto pendente).
-- Validações: ao menos uma NF; NFs existem; não possuem `cte` nem `integration` em andamento; isolamento multi-tenant (exceto `ROLE_SUPER`).
+- Cria `Integration` com `queueName`/`taskType` de emissão CT-e e **vincula as NFs imediatamente** (`InvoiceTax::setIntegration($integration)` + `flush`) — ver seção [Vínculo imediato NF → task (#27)](#vínculo-imediato-nf--task-27).
+- **Validações de negócio** (`EmitCteService::emit`):
+  - **Mínimo 1 NF** (`count($ids) < 1` → 400 com mensagem *"Selecione ao menos uma NF para emitir o CT-e."*). Um CT-e pode referenciar uma única NF-e (caso mais comum na legislação e na prática); agrupar várias NFs do mesmo remetente/destinatário é opcional, não obrigatório. Correção da validação rígida anterior (`< 2`) em [#26](https://github.com/ControleOnline/api-platform-accounting/issues/26).
+  - Lista não vazia após normalização (`intval` + unique + filter).
+  - CFOP obrigatório (não vazio).
+  - Todas as NFs existem no repositório; caso contrário 400.
+  - NFs não possuem `cte` nem `integration` em andamento (já ocupadas).
+  - Isolamento multi-tenant: `assertTenantCanEmit` (exceto `ROLE_SUPER`).
+  - Payload de bind de arrays usa `Doctrine\DBAL\ArrayParameterType::INTEGER` (compatível DBAL 3+/4; evita `Connection::PARAM_INT_ARRAY` removido).
 
 ### 2. Consumo da fila
 
 - **Comando:** `php bin/console app:cte:emit [--limit=20]`
-- Também integrado ao pipeline de integrações (`CteEmissionService` / `tenant:integration:start` quando aplicável).
+- **Messenger / cron** `tenant:integration:start`: `IntegrationService::executeIntegration` resolve o handler pelo `queueName` e chama `CteEmissionService::integrate()`.
 - `CteEmissionProcessor`:
-  - Processa `Integration` com fila `cte_emission` **e** tarefas `invoice_task` tipo `cte_emission` em status pending.
-  - Status **somente** via `StatusService::discoveryStatus('processing'|'closed'|'error', …, 'invoice_task')`.
+  - Processa `Integration` com fila `cte_emission` / `CteEmission` **e** tarefas `invoice_task` tipo `cte_emission` em status pending.
+  - Status **somente** via `StatusService::discoveryStatus('processing'|'closed'|'error', …, 'invoice_task'|'integration')`.
+
+#### Caminho Messenger (hotfix app-community#689)
+
+Antes do hotfix, `CteEmissionService::integrate()` era um **stub**: criava `InvoiceTax` model 57 com chave/número fabricados e status **closed**, **sem** XML, **sem** assinatura e **sem** transmissão SEFAZ. A UI (`/cte`) mostrava Closed falso.
+
+**Contrato atual (obrigatório):**
+
+| Artefato | Responsabilidade |
+| --- | --- |
+| `CteEmissionService` | Thin handler: **apenas** `return $this->processor->processMessengerIntegration($integration)` |
+| `CteEmissionProcessor::processMessengerIntegration` | Normaliza body/payload (`invoiceTaxIds`/`selected` + `cfop` + `extra`); exige ids e CFOP; delega a `processTask` |
+| `processTask` | processing → build → signAndSend → persistCte (Closed **somente** após XML autorizado) |
+| `processIntegrations` | Em sucesso marca Integration closed; em **qualquer** exceção marca **error** (nunca closed silencioso) |
+
+`app:cte:emit` e o caminho messenger compartilham **a mesma** implementação (`CteEmissionProcessor`). Não deve existir segundo caminho que invente Closed.
+
+Referência de produto: [app-community#689](https://github.com/ControleOnline/app-community/issues/689).
 
 ### 3. Montagem do XML
 
@@ -148,6 +179,71 @@ Presentes no runtime do pai `api-community`:
 - `nfephp-org/sped-da` (DACTE)
 - `nfephp-org/sped-common` (Certificate, etc.)
 
+
+## Vínculo imediato NF → task (#27)
+
+### Problema corrigido
+
+Antes do fix, `POST /invoice_tasks/emit-cte` criava a `Integration` / `invoice_task` com `status: open|pending`, mas **não** preenchia `invoice_tax.invoice_task_id` (mapeado como `InvoiceTax::$integration` → `Integration`). O vínculo só ocorria depois, em:
+
+- `CteEmissionProcessor::persistCte` (`$invoice->setIntegration($task)`)
+- `CteEmissionService::integrate` (`$nf->setIntegration($integration)`)
+
+Enquanto a task estava em andamento (`open` / `pending` / `processing`), `GET /invoice_taxes/without-cte` continuava listando as NFs e o operador podia reenviar o mesmo conjunto.
+
+### Contrato atual (`EmitCteService::emit`)
+
+Após `integrationService->addIntegration(...)`:
+
+1. Para **cada** `InvoiceTax` selecionada: `$invoice->setIntegration($integration)` + `persist`.
+2. `EntityManager::flush()` **antes** de retornar a Integration (HTTP 201).
+3. Resposta da API **não muda** (id, `@id`, status).
+
+Com isso, no mesmo instante do `201`:
+
+- cada NF tem `invoice_task_id` = id da task criada;
+- `GET /invoice_taxes/without-cte` **não** retorna mais essas NFs, mesmo com `cte_id` ainda `NULL` e task ainda `open`.
+
+### Filtro de `InvoicesWithoutCteService`
+
+A listagem de NFs elegíveis exclui qualquer NF que já esteja “ocupada”:
+
+| Critério | Origem |
+| --- | --- |
+| `cte_id IS NULL` | CT-e ainda não emitido / vinculado |
+| `invoice_task_id IS NULL` (coluna presente) | SQL path |
+| exclusão de IDs com `invoice_task_id IS NOT NULL` (`busyInvoiceIds`) | Doctrine path (`invoiceTax.cte IS NULL` + filtro pós-query) |
+
+Modelos listáveis: **55** e **65** (`NF_MODELS`). Modelo CT-e = **57**.
+
+### Validações que dependem do vínculo
+
+- Tentativa de emitir de novo NFs já com `integration` → `400` *"Uma ou mais NFs já estão em emissão ou emitidas."*
+- NF com `cte` já preenchido → `400` *"NF … já possui CT-e vinculado."*
+- Isolamento multi-tenant (`assertTenantCanEmit`) permanece inalterado.
+
+### Falha da task (`status: error`)
+
+Em caso de erro posterior (SEFAZ, validação no processor, etc.):
+
+- o vínculo `invoice_task_id` **não** é limpo automaticamente nesta issue (evita reentrada silenciosa na fila `without-cte`);
+- reprocesso / cancelamento com liberação do vínculo deve ser tratado em issue separada de retry/cancelamento;
+- o processor continua podendo setar `cte` + `integration` no sucesso sem conflito com o vínculo já gravado no emit.
+
+### Componentes envolvidos
+
+| Componente | Papel no vínculo |
+| --- | --- |
+| `EmitCteService` | Seta `integration` + flush na criação da task |
+| `InvoicesWithoutCteService` | Filtra por `cte` null **e** ausência de `invoice_task_id` |
+| `ListInvoicesWithoutCteAction` | Endpoint HTTP da listagem |
+| `CteEmissionProcessor` / `CteEmissionService` | No sucesso, persistem CT-e e reforçam vínculos; não dependem de limpar o bind do emit |
+
+### Testes
+
+- `tests/Service/EmitCteServiceTest.php` — assert de bind imediato das NFs na Integration criada.
+- `tests/Service/InvoicesWithoutCteServiceTest.php` — exclusão de NFs com `invoice_task_id` preenchido.
+
 ## Status e erros
 
 - Transições de `invoice_task` / integração: **pending → processing → closed | error**.
@@ -162,13 +258,21 @@ Em `tests/Service/Cte/`:
 - `CteFiscalConfigTest`
 - `CteEmissionProcessorTest`
 
-Cobrem montagem, carga de config e fluxo do processor (com mocks de SEFAZ/persistência conforme o suite).
+Em `tests/Service/`:
+
+- `EmitCteServiceTest` — validações de emit + **bind imediato** `setIntegration` (#27)
+- `InvoicesWithoutCteServiceTest` — exclusão de NFs com `invoice_task_id` / `cte` preenchidos
+
+Cobrem montagem, carga de config, fluxo do processor (com mocks de SEFAZ/persistência) e o contrato de fila `without-cte`.
 
 ## Links relacionados
 
 | Destino | URL |
 | --- | --- |
-| Issue | https://github.com/ControleOnline/api-platform-accounting/issues/16 |
+| Issue (NFePHP + DACTE) | https://github.com/ControleOnline/api-platform-accounting/issues/16 |
+| Issue (mínimo 1 NF no emit-cte) | https://github.com/ControleOnline/api-platform-accounting/issues/26 |
+| Issue (vínculo imediato invoice_task_id no emit) | https://github.com/ControleOnline/api-platform-accounting/issues/27 |
+| Issue (worker stub Closed falso) | https://github.com/ControleOnline/app-community/issues/689 |
 | Home do módulo | https://github.com/ControleOnline/api-platform-accounting/wiki |
 | Wiki API (pai) | https://github.com/ControleOnline/api-community/wiki |
 | Wiki App | https://github.com/ControleOnline/app-community/wiki |
@@ -180,3 +284,9 @@ Cobrem montagem, carga de config e fluxo do processor (com mocks de SEFAZ/persis
 - Novos campos de layout CT-e: preferir extensão em `CteXmlBuilder` e testes unitários; evitar crescer o processor.
 - Mudança de versão de schema SEFAZ: alinhar `schemes` / `versao` em `CteSefazClient` e validar em homologação (`tpAmb=2`).
 - Certificado: nunca logar senha ou conteúdo binário do PFX; apenas existência/ausência.
+
+## Listagem CT-e (status e cor)
+
+A coleção `GET /invoice_taxes?invoiceModel=57` usa normalização `invoice_tax:read`. O `Status` embutido só serializa `id`/`status`/`realStatus`/`color` se esses campos declararem o grupo `invoice_tax:read` na entidade compartilhada `Status` (`api-platform-common`).
+
+Documentação canônica: [Status — grupos de serialização para recursos aninhados](https://github.com/ControleOnline/api-platform-common/wiki/Status-Serialization-Groups) (fix #32).
