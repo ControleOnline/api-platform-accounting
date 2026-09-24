@@ -23,16 +23,12 @@ class CteEmissionProcessor
 
     public function processPending(int $limit = 20): int
     {
-        $processed = 0;
-        $processed += $this->processIntegrations($limit);
-        $processed += $this->processTasks($limit);
-
-        return $processed;
+        return $this->processTasks($limit);
     }
 
     /**
      * Integração criada por EmitCteService (queueName=CteEmission, body JSON).
-     * Usado pelo cron tenant:integration:start via CteEmissionService::integrate.
+     * Chamado pelo Messenger handler via CteEmissionService::integrate.
      */
     public function processMessengerIntegration(Integration $integration): InvoiceTax
     {
@@ -192,44 +188,6 @@ class CteEmissionProcessor
         $this->manager->flush();
 
         return $cte;
-    }
-
-    private function processIntegrations(int $limit): int
-    {
-        if (!class_exists(Integration::class)) {
-            return 0;
-        }
-
-        $open = $this->statusService->discoveryStatus('open', 'open', 'integration');
-        $qb = $this->manager->createQueryBuilder()
-            ->select('integration')
-            ->from(Integration::class, 'integration')
-            ->andWhere('integration.queueName IN (:queues)')
-            ->setParameter('queues', ['cte_emission', 'CteEmission'])
-            ->setMaxResults($limit)
-            ->orderBy('integration.id', 'ASC');
-        if ($open) {
-            $qb->andWhere('integration.status = :status')->setParameter('status', $open);
-        }
-        $items = $qb->getQuery()->getResult();
-        $count = 0;
-        foreach ($items as $integration) {
-            try {
-                $this->processMessengerIntegration($integration);
-                $closed = $this->statusService->discoveryStatus('closed', 'closed', 'integration');
-                $integration->setStatus($closed);
-                $this->manager->persist($integration);
-                $this->manager->flush();
-                $count++;
-            } catch (\Throwable) {
-                $error = $this->statusService->discoveryStatus('error', 'error', 'integration');
-                $integration->setStatus($error);
-                $this->manager->persist($integration);
-                $this->manager->flush();
-            }
-        }
-
-        return $count;
     }
 
     private function processTasks(int $limit): int
