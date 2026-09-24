@@ -136,7 +136,7 @@ class InvoiceTax
     #[Groups(['invoice_tax:read', 'invoice_tax:write'])]
     private $cte;
 
-    #[ORM\JoinColumn(name: 'invoice_task_id', referencedColumnName: 'id', nullable: true)]
+    #[ORM\JoinColumn(name: 'integration_id', referencedColumnName: 'id', nullable: true)]
     #[ORM\ManyToOne(targetEntity: Integration::class)]
     #[Groups(['invoice_tax:read'])]
     private $integration;
